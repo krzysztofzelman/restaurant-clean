@@ -1,0 +1,236 @@
+-- ============================================================
+-- RESTAURACJA – Kompletny skrypt SQL do Supabase SQL Editor
+-- Uruchom w kolejności: 1 → 2 → 3 → 4
+-- ============================================================
+
+-- ============================================================
+-- 1. TABELE
+-- ============================================================
+
+-- Tabela profili (synchornizowana z auth.users przez trigger)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT,
+  full_name TEXT,
+  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'kitchen', 'admin')),
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Menu
+CREATE TABLE IF NOT EXISTS public.menu_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT,
+  price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
+  category TEXT NOT NULL,
+  is_available BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
+
+-- Zamówienia
+CREATE TABLE IF NOT EXISTS public.orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','confirmed','preparing','ready','delivered','cancelled')),
+  total_amount DECIMAL(10,2) NOT NULL CHECK (total_amount >= 0),
+  payment_status TEXT NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid','paid','refunded')),
+  delivery_address TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+
+-- Pozycje zamówienia
+CREATE TABLE IF NOT EXISTS public.order_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  menu_item_id UUID NOT NULL REFERENCES public.menu_items(id) ON DELETE CASCADE,
+  quantity INTEGER NOT NULL CHECK (quantity > 0),
+  unit_price DECIMAL(10,2) NOT NULL CHECK (unit_price >= 0),
+  subtotal DECIMAL(10,2) NOT NULL CHECK (subtotal >= 0)
+);
+
+ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================
+-- 2. TRIGGER: synchronizacja auth.users → public.profiles
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = ''
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, role, is_active)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data ->> 'full_name', ''),
+    'user',
+    true
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name);
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Dodatkowy trigger dla aktualizacji emaila
+DROP TRIGGER IF EXISTS on_auth_user_updated ON auth.users;
+CREATE TRIGGER on_auth_user_updated
+  AFTER UPDATE ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ============================================================
+-- 3. FUNKCJA CRON: anulowanie nieopłaconych zamówień po 15 min
+-- ============================================================
+
+-- Wymaga włączonego rozszerzenia pg_cron w Supabase:
+-- https://supabase.com/docs/guides/platform/database-extensions
+-- CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+CREATE OR REPLACE FUNCTION public.cancel_unpaid_orders()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = ''
+AS $$
+BEGIN
+  UPDATE public.orders
+  SET status = 'cancelled'
+  WHERE status = 'pending'
+    AND payment_status = 'unpaid'
+    AND created_at < now() - INTERVAL '15 minutes';
+END;
+$$;
+
+-- Odkomentuj poniższą linię, aby uruchomić cron co minutę:
+-- SELECT cron.schedule('cancel-unpaid-orders', '* * * * *', 'SELECT public.cancel_unpaid_orders();');
+
+-- ============================================================
+-- 4. POLITYKI RLS (Row Level Security)
+-- ============================================================
+
+-- Profiles: każdy widzi swój profil, admin widzi wszystkie
+CREATE POLICY "Users can view own profile"
+  ON public.profiles FOR SELECT
+  USING (auth.uid() = id);
+
+CREATE POLICY "Admins can view all profiles"
+  ON public.profiles FOR SELECT
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can update profiles"
+  ON public.profiles FOR UPDATE
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- Menu items: każdy może czytać, tylko admin może modyfikować
+CREATE POLICY "Anyone can view menu items"
+  ON public.menu_items FOR SELECT
+  USING (true);
+
+CREATE POLICY "Admins can insert menu items"
+  ON public.menu_items FOR INSERT
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can update menu items"
+  ON public.menu_items FOR UPDATE
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can delete menu items"
+  ON public.menu_items FOR DELETE
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- Orders: użytkownik widzi swoje, kuchnia/admin widzi wszystkie
+CREATE POLICY "Users can view own orders"
+  ON public.orders FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Staff can view all orders"
+  ON public.orders FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role IN ('kitchen', 'admin')
+    )
+  );
+
+CREATE POLICY "Users can insert own orders"
+  ON public.orders FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Staff can update orders"
+  ON public.orders FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role IN ('kitchen', 'admin')
+    )
+  );
+
+-- Order items: użytkownik widzi swoje, kuchnia/admin widzi wszystkie
+CREATE POLICY "Users can view own order items"
+  ON public.order_items FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.orders
+      WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Staff can view all order items"
+  ON public.order_items FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role IN ('kitchen', 'admin')
+    )
+  );
+
+CREATE POLICY "Users can insert own order items"
+  ON public.order_items FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.orders
+      WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid()
+    )
+  );
+
+-- ============================================================
+-- 5. PRZYKŁADOWE DANE (opcjonalnie)
+-- ============================================================
+
+INSERT INTO public.menu_items (name, description, price, category, is_available) VALUES
+  ('Schabowy z ziemniakami', 'Panierowany schabowy, ziemniaki, surówka z kapusty', 32.00, 'Obiady', true),
+  ('Rosół z makaronem', 'Domowy rosół drobiowy z makaronem', 14.00, 'Zupy', true),
+  ('Pierogi ruskie', 'Ręcznie lepione pierogi z twarogiem i ziemniakami', 22.00, 'Obiady', true),
+  ('Cola', 'Napój gazowany 0.33l', 6.00, 'Napoje', true),
+  ('Woda mineralna', 'Niegazowana 0.5l', 5.00, 'Napoje', true),
+  ('Szarlotka na ciepło', 'Z lodami i bitą śmietaną', 18.00, 'Desery', true),
+  ('Placki ziemniaczane', 'Z gulaszem i śmietaną', 26.00, 'Obiady', true),
+  ('Pomidorowa z ryżem', 'Zupa pomidorowa z ryżem', 13.00, 'Zupy', true),
+  ('Sok pomarańczowy', 'Świeżo wyciskany 0.3l', 9.00, 'Napoje', true),
+  ('Naleśniki z serem', 'Z cukrem waniliowym i bitą śmietaną', 20.00, 'Desery', true)
+ON CONFLICT DO NOTHING;
