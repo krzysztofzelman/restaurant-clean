@@ -1,10 +1,21 @@
 import { useCart } from '../hooks/useCart.jsx';
 
+const PLACEHOLDER_IMG = 'https://placehold.co/400x300/e9ecef/6c757d?text=Brak+zdj%C4%99cia';
+
 export default function MenuCard({ item }) {
   const { addToCart } = useCart();
 
+  const imgSrc = item.image_url || PLACEHOLDER_IMG;
+
   return (
     <div className="card h-100 shadow-sm">
+      <img
+        src={imgSrc}
+        alt={item.name}
+        className="card-img-top"
+        style={{ height: '200px', objectFit: 'cover' }}
+        onError={(e) => { e.target.src = PLACEHOLDER_IMG; }}
+      />
       <div className="card-body d-flex flex-column">
         <div className="d-flex justify-content-between align-items-start mb-2">
           <h5 className="card-title mb-0">{item.name}</h5>
