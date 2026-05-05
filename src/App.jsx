@@ -7,6 +7,7 @@ import RegisterPage from './pages/RegisterPage';
 import MenuPage from './pages/MenuPage';
 import CartPage from './pages/CartPage';
 import OrdersPage from './pages/OrdersPage';
+import HomePage from './pages/HomePage';
 import KitchenPage from './pages/KitchenPage';
 import AdminPage from './pages/AdminPage';
 
@@ -46,7 +47,7 @@ function PublicRoute({ children }) {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/menu" replace />} />
+      <Route path="/" element={<HomePage />} />
       <Route
         path="/login"
         element={

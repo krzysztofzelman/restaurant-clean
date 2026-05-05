@@ -138,6 +138,16 @@ export async function updatePaymentStatus(orderId, paymentStatus) {
   return data;
 }
 
+/* ──────────────── Stripe payment ──────────────── */
+
+export async function createPaymentIntent(orderId, amount) {
+  const { data, error } = await supabase.functions.invoke('create-payment-intent', {
+    body: { orderId, amount },
+  });
+  if (error) throw error;
+  return data; // { clientSecret }
+}
+
 /* ──────────────── User profile ──────────────── */
 
 export async function getUserProfile(userId) {

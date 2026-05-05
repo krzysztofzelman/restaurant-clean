@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart.jsx';
 import { useAuth } from '../context/AuthContext';
 import { createOrder } from '../services/api';
+import StripePayment from '../components/StripePayment';
 
 export default function CartPage() {
   const { cart, updateQuantity, removeFromCart, clearCart, totalAmount } = useCart();
@@ -13,6 +14,7 @@ export default function CartPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [placedOrder, setPlacedOrder] = useState(null);
 
   const handlePlaceOrder = async () => {
     if (!user) {
@@ -25,16 +27,15 @@ export default function CartPage() {
     setSuccess('');
     setSubmitting(true);
     try {
-      await createOrder({
+      const order = await createOrder({
         userId: user.id,
         items: cart,
         totalAmount,
         deliveryAddress,
         notes,
       });
-      clearCart();
-      setSuccess('Zamówienie złożone pomyślnie!');
-      setTimeout(() => navigate('/orders'), 2000);
+      // clearCart() is NOT called here — items stay until payment succeeds
+      setPlacedOrder(order);
     } catch (err) {
       setError('Błąd składania zamówienia: ' + err.message);
     } finally {
@@ -42,7 +43,17 @@ export default function CartPage() {
     }
   };
 
-  if (cart.length === 0) {
+  const handlePaymentSuccess = () => {
+    clearCart();
+    setSuccess('Płatność zakończona sukcesem! Zamówienie jest realizowane.');
+    setTimeout(() => navigate('/orders'), 2000);
+  };
+
+  const handlePaymentError = (msg) => {
+    setError('Błąd płatności: ' + msg);
+  };
+
+  if (cart.length === 0 && !placedOrder) {
     return (
       <div className="container py-5 text-center">
         <h2>Koszyk jest pusty</h2>
@@ -133,13 +144,22 @@ export default function CartPage() {
                 />
               </div>
 
-              <button
-                className="btn btn-success w-100"
-                onClick={handlePlaceOrder}
-                disabled={submitting}
-              >
-                {submitting ? 'Składanie...' : 'Złóż zamówienie'}
-              </button>
+              {placedOrder ? (
+                <StripePayment
+                  orderId={placedOrder.id}
+                  amount={totalAmount}
+                  onSuccess={handlePaymentSuccess}
+                  onError={handlePaymentError}
+                />
+              ) : (
+                <button
+                  className="btn btn-success w-100"
+                  onClick={handlePlaceOrder}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Składanie...' : 'Złóż zamówienie'}
+                </button>
+              )}
             </div>
           </div>
         </div>

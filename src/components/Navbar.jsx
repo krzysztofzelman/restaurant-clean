@@ -61,7 +61,7 @@ export default function Navbar() {
             )}
           </ul>
           <div className="d-flex align-items-center gap-3">
-            <CartWidget />
+            {role === 'user' && <CartWidget />}
             {user ? (
               <>
                 <span className="text-light small">

@@ -181,6 +181,10 @@ CREATE POLICY "Users can insert own orders"
   ON public.orders FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+CREATE POLICY "Users can update own orders"
+  ON public.orders FOR UPDATE
+  USING (auth.uid() = user_id);
+
 CREATE POLICY "Staff can update orders"
   ON public.orders FOR UPDATE
   USING (

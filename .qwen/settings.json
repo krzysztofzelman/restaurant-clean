@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx *)"
+      "Bash(npx *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(git ls-remote *)",
+      "Bash(type *)",
+      "Bash(npm install *)",
+      "Bash(mkdir *)",
+      "Bash(npm uninstall *)",
+      "Bash(rmdir *)",
+      "Bash(del *)"
     ]
-  }
+  },
+  "$version": 3
 }
