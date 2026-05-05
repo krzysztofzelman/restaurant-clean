@@ -64,6 +64,30 @@ Do testowania użyj karty:
 
 Pełna lista kart testowych: https://docs.stripe.com/testing
 
+## Konta testowe
+
+Proponowane konta do rejestracji przez formularz:
+
+| Rola          | Email                    | Hasło (przykładowe) |
+|---------------|--------------------------|---------------------|
+| Administrator | admin@restauracja.pl     | admin123            |
+| Kuchnia       | kitchen@restauracja.pl   | kitchen123          |
+| Klient        | jan@example.com          | user123             |
+
+Po rejestracji admina wykonaj w Supabase SQL Editor:
+
+```sql
+UPDATE public.profiles SET role = 'admin'
+WHERE email = 'admin@restauracja.pl';
+```
+
+Dla konta kuchni:
+
+```sql
+UPDATE public.profiles SET role = 'kitchen'
+WHERE email = 'kitchen@restauracja.pl';
+```
+
 ## Instalacja i uruchomienie lokalne
 
 ### 1. Sklonuj repozytorium
