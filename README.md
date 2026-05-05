@@ -6,14 +6,63 @@ Aplikacja webowa do składania zamówień w restauracji. Zbudowana z React + Vit
 
 - **Logowanie/rejestracja** – Supabase Auth z rolami: `user`, `kitchen`, `admin`
 - **Panel klienta** – przeglądanie menu z kategoriami, koszyk (localStorage), składanie zamówień
-- **Panel kuchni** – lista zamówień odświeżana co 10s, zmiana statusów
+- **Panel kuchni** – lista zamówień odświeżana co 10s, zmiana statusów; ukryty koszyk i przyciski "Dodaj do koszyka"
 - **Panel admina** – zarządzanie menu, zamówieniami i użytkownikami
+- **Strona główna (wizytówka)** – hero section, o nas, opinie, stopka
+- **Płatności Stripe (sandbox)** – formularz karty po złożeniu zamówienia, integracja przez Supabase Edge Functions, status 'Opłacone'/'Nieopłacone'
 - **Automatyczne anulowanie** – nieopłacone zamówienia anulowane po 15 minutach (cron w Supabase)
 
 ## Wymagania
 
 - Node.js 18+
 - Konto Supabase (darmowe: https://supabase.com)
+
+## Płatności Stripe
+
+Integracja płatności kartą przez Stripe w trybie sandbox (testowym).
+
+### 1. Załóż konto Stripe
+
+Wejdź na [stripe.com](https://stripe.com) i zarejestruj się (darmowe konto sandbox).
+
+### 2. Pobierz klucze API
+
+W dashboardzie Stripe przejdź do **Developers → API keys** i skopiuj:
+
+- **Publishable key** – zaczyna się od `pk_test_...`
+- **Secret key** – zaczyna się od `sk_test_...`
+
+### 3. Dodaj klucz publiczny do `.env`
+
+```env
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
+
+### 4. Wgraj Edge Function
+
+```bash
+supabase functions deploy create-payment-intent
+```
+
+### 5. Dodaj klucz sekretny w Supabase
+
+W Supabase Dashboard przejdź do **Edge Functions → Secrets** i dodaj:
+
+```
+STRIPE_SECRET_KEY=sk_test_...
+```
+
+### 6. Karta testowa
+
+Do testowania użyj karty:
+
+| Pole        | Wartość              |
+|-------------|----------------------|
+| Numer karty | `4242 4242 4242 4242` |
+| Data        | dowolna przyszła     |
+| CVC         | dowolne 3 cyfry      |
+
+Pełna lista kart testowych: https://docs.stripe.com/testing
 
 ## Instalacja i uruchomienie lokalne
 
@@ -77,6 +126,10 @@ restaurant-clean/
 ├── vite.config.js
 ├── .env.example
 ├── supabase-schema.sql
+├── supabase/
+│   └── functions/
+│       └── create-payment-intent/
+│           └── index.ts
 └── src/
     ├── main.jsx
     ├── App.jsx
@@ -92,8 +145,10 @@ restaurant-clean/
     ├── components/
     │   ├── Navbar.jsx
     │   ├── CartWidget.jsx
-    │   └── MenuCard.jsx
+    │   ├── MenuCard.jsx
+    │   └── StripePayment.jsx
     └── pages/
+        ├── HomePage.jsx
         ├── LoginPage.jsx
         ├── RegisterPage.jsx
         ├── MenuPage.jsx
