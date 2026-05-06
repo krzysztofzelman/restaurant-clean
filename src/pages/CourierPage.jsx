@@ -1,0 +1,317 @@
+import { useEffect, useState, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { getCourierOrders, updateDeliveryStatus } from '../services/api';
+
+const deliveryLabels = {
+  pending: 'Oczekuje',
+  assigned: 'Przypisane',
+  in_delivery: 'W dostawie',
+  delivered: 'Dostarczone',
+};
+
+const deliveryColors = {
+  pending: 'secondary',
+  assigned: 'info',
+  in_delivery: 'primary',
+  delivered: 'success',
+};
+
+export default function CourierPage() {
+  const { user } = useAuth();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState('available');
+
+  const loadOrders = useCallback(async () => {
+    try {
+      const data = await getCourierOrders();
+      setOrders(data);
+    } catch (err) {
+      setError('Błąd ładowania zamówień: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initial load + auto-refresh every 15s
+  useEffect(() => {
+    loadOrders();
+    const interval = setInterval(loadOrders, 15000);
+    return () => clearInterval(interval);
+  }, [loadOrders]);
+
+  const handleAssign = async (orderId) => {
+    try {
+      await updateDeliveryStatus(orderId, 'assigned', user.id);
+      await loadOrders();
+    } catch (err) {
+      alert('Błąd: ' + err.message);
+    }
+  };
+
+  const handleStartDelivery = async (orderId) => {
+    try {
+      await updateDeliveryStatus(orderId, 'in_delivery');
+      await loadOrders();
+    } catch (err) {
+      alert('Błąd: ' + err.message);
+    }
+  };
+
+  const handleDelivered = async (orderId) => {
+    try {
+      await updateDeliveryStatus(orderId, 'delivered');
+      await loadOrders();
+    } catch (err) {
+      alert('Błąd: ' + err.message);
+    }
+  };
+
+  const availableOrders = orders.filter(
+    (o) => o.status === 'ready' && o.delivery_status === 'pending'
+  );
+
+  const myDeliveries = orders.filter(
+    (o) =>
+      o.courier_id === user.id &&
+      ['assigned', 'in_delivery'].includes(o.delivery_status)
+  );
+
+  const completedDeliveries = orders.filter(
+    (o) => o.courier_id === user.id && o.delivery_status === 'delivered'
+  );
+
+  if (loading) {
+    return (
+      <div className="container py-5 text-center">
+        <div className="spinner-border" role="status" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="container py-4">
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2 className="mb-0">Panel dostawcy</h2>
+        <span className="text-muted small">Odświeżanie co 15s</span>
+      </div>
+
+      {error && <div className="alert alert-danger">{error}</div>}
+
+      {/* Filter tabs */}
+      <ul className="nav nav-tabs mb-4">
+        <li className="nav-item">
+          <button
+            className={`nav-link ${filter === 'available' ? 'active' : ''}`}
+            onClick={() => setFilter('available')}
+          >
+            Dostępne ({availableOrders.length})
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${filter === 'active' ? 'active' : ''}`}
+            onClick={() => setFilter('active')}
+          >
+            Aktywne ({myDeliveries.length})
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${filter === 'completed' ? 'active' : ''}`}
+            onClick={() => setFilter('completed')}
+          >
+            Dostarczone ({completedDeliveries.length})
+          </button>
+        </li>
+      </ul>
+
+      {/* ─── Available orders ─── */}
+      {filter === 'available' && (
+        <>
+          {availableOrders.length === 0 ? (
+            <p className="text-muted">Brak zamówień gotowych do odbioru.</p>
+          ) : (
+            <div className="row g-3">
+              {availableOrders.map((order) => (
+                <div key={order.id} className="col-12 col-md-6 col-xl-4">
+                  <div className="card h-100 shadow-sm border-success">
+                    <div className="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                      <span className="fw-bold small">
+                        #{order.id.slice(0, 8)}
+                      </span>
+                      <span className="badge bg-light text-dark">Gotowe</span>
+                    </div>
+                    <div className="card-body">
+                      <p className="mb-1 small">
+                        <strong>Klient:</strong>{' '}
+                        {order.profiles?.full_name || order.profiles?.email || 'Nieznany'}
+                      </p>
+                      {order.delivery_address && (
+                        <p className="mb-1 small">
+                          <strong>Adres:</strong> {order.delivery_address}
+                        </p>
+                      )}
+                      {order.notes && (
+                        <p className="mb-1 small">
+                          <strong>Uwagi:</strong> {order.notes}
+                        </p>
+                      )}
+                      <hr />
+                      <h6 className="small">Pozycje:</h6>
+                      <ul className="list-unstyled small mb-0">
+                        {order.order_items?.map((item) => (
+                          <li key={item.id}>
+                            {item.quantity}× {item.menu_item?.name || 'Danie'} –{' '}
+                            {item.subtotal.toFixed(2)} zł
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="card-footer">
+                      <div className="d-flex justify-content-between align-items-center">
+                        <strong>{order.total_amount.toFixed(2)} zł</strong>
+                        <button
+                          className="btn btn-success btn-sm"
+                          onClick={() => handleAssign(order.id)}
+                        >
+                          Przyjmij dostawę
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ─── Active deliveries ─── */}
+      {filter === 'active' && (
+        <>
+          {myDeliveries.length === 0 ? (
+            <p className="text-muted">Brak aktywnych dostaw.</p>
+          ) : (
+            <div className="row g-3">
+              {myDeliveries.map((order) => (
+                <div key={order.id} className="col-12 col-md-6 col-xl-4">
+                  <div className="card h-100 shadow-sm border-primary">
+                    <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                      <span className="fw-bold small">
+                        #{order.id.slice(0, 8)}
+                      </span>
+                      <span
+                        className={`badge bg-${deliveryColors[order.delivery_status]}`}
+                      >
+                        {deliveryLabels[order.delivery_status]}
+                      </span>
+                    </div>
+                    <div className="card-body">
+                      <p className="mb-1 small">
+                        <strong>Klient:</strong>{' '}
+                        {order.profiles?.full_name || order.profiles?.email || 'Nieznany'}
+                      </p>
+                      {order.delivery_address && (
+                        <p className="mb-1 small">
+                          <strong>Adres:</strong> {order.delivery_address}
+                        </p>
+                      )}
+                      {order.notes && (
+                        <p className="mb-1 small">
+                          <strong>Uwagi:</strong> {order.notes}
+                        </p>
+                      )}
+                      <hr />
+                      <h6 className="small">Pozycje:</h6>
+                      <ul className="list-unstyled small mb-0">
+                        {order.order_items?.map((item) => (
+                          <li key={item.id}>
+                            {item.quantity}× {item.menu_item?.name || 'Danie'} –{' '}
+                            {item.subtotal.toFixed(2)} zł
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="card-footer">
+                      <div className="d-flex justify-content-between align-items-center">
+                        <strong>{order.total_amount.toFixed(2)} zł</strong>
+                        <div className="d-flex gap-1">
+                          {order.delivery_status === 'assigned' && (
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() => handleStartDelivery(order.id)}
+                            >
+                              W drogę
+                            </button>
+                          )}
+                          {order.delivery_status === 'in_delivery' && (
+                            <button
+                              className="btn btn-success btn-sm"
+                              onClick={() => handleDelivered(order.id)}
+                            >
+                              Dostarczone
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ─── Completed deliveries ─── */}
+      {filter === 'completed' && (
+        <>
+          {completedDeliveries.length === 0 ? (
+            <p className="text-muted">Brak zrealizowanych dostaw.</p>
+          ) : (
+            <div className="row g-3">
+              {completedDeliveries.map((order) => (
+                <div key={order.id} className="col-12 col-md-6 col-xl-4">
+                  <div className="card h-100 shadow-sm border-secondary">
+                    <div className="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                      <span className="fw-bold small">
+                        #{order.id.slice(0, 8)}
+                      </span>
+                      <span className="badge bg-success">Dostarczone</span>
+                    </div>
+                    <div className="card-body">
+                      <p className="mb-1 small">
+                        <strong>Klient:</strong>{' '}
+                        {order.profiles?.full_name || order.profiles?.email || 'Nieznany'}
+                      </p>
+                      {order.delivery_address && (
+                        <p className="mb-1 small">
+                          <strong>Adres:</strong> {order.delivery_address}
+                        </p>
+                      )}
+                      <hr />
+                      <h6 className="small">Pozycje:</h6>
+                      <ul className="list-unstyled small mb-0">
+                        {order.order_items?.map((item) => (
+                          <li key={item.id}>
+                            {item.quantity}× {item.menu_item?.name || 'Danie'} –{' '}
+                            {item.subtotal.toFixed(2)} zł
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="card-footer">
+                      <strong>{order.total_amount.toFixed(2)} zł</strong>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

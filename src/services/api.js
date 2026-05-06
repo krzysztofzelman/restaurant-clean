@@ -156,6 +156,33 @@ export async function updatePaymentStatus(orderId, paymentStatus) {
   return data;
 }
 
+/* ──────────────── Courier / Delivery ──────────────── */
+
+export async function getCourierOrders() {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)')
+    .or('status.eq.ready,and(delivery_status.eq.assigned,delivery_status.eq.in_delivery)')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function updateDeliveryStatus(orderId, deliveryStatus, courierId) {
+  const updates = { delivery_status: deliveryStatus };
+  if (courierId) {
+    updates.courier_id = courierId;
+  }
+  const { data, error } = await supabase
+    .from('orders')
+    .update(updates)
+    .eq('id', orderId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 /* ──────────────── Stripe payment ──────────────── */
 
 export async function createPaymentIntent(orderId, amount) {

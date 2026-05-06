@@ -66,6 +66,13 @@ export default function Navbar() {
                 </Link>
               </li>
             )}
+            {role === 'courier' && (
+              <li className="nav-item">
+                <Link className="nav-link" to="/courier">
+                  Dostawy
+                </Link>
+              </li>
+            )}
           </ul>
           <div className="d-flex align-items-center gap-3">
             {role === 'user' && <CartWidget />}

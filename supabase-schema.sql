@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT,
   full_name TEXT,
-  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'kitchen', 'admin')),
+  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'kitchen', 'admin', 'courier')),
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -48,14 +48,32 @@ CREATE TABLE IF NOT EXISTS public.orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','confirmed','preparing','ready','delivered','cancelled')),
+  delivery_status TEXT NOT NULL DEFAULT 'pending' CHECK (delivery_status IN ('pending','assigned','in_delivery','delivered')),
   total_amount DECIMAL(10,2) NOT NULL CHECK (total_amount >= 0),
   payment_status TEXT NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid','paid','refunded')),
   delivery_address TEXT,
   notes TEXT,
+  courier_id UUID REFERENCES public.profiles(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+
+-- Dodanie kolumn delivery_status i courier_id dla istniejących baz (idempotentne)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'delivery_status'
+  ) THEN
+    ALTER TABLE public.orders ADD COLUMN delivery_status TEXT NOT NULL DEFAULT 'pending' CHECK (delivery_status IN ('pending','assigned','in_delivery','delivered'));
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'courier_id'
+  ) THEN
+    ALTER TABLE public.orders ADD COLUMN courier_id UUID REFERENCES public.profiles(id);
+  END IF;
+END $$;
 
 -- Pozycje zamówienia
 CREATE TABLE IF NOT EXISTS public.order_items (
@@ -205,6 +223,36 @@ CREATE POLICY "Staff can update orders"
     )
   );
 
+-- Courier: widzi zamówienia ready lub swoje aktywne dostawy
+CREATE POLICY "Couriers can view delivery orders"
+  ON public.orders FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'courier'
+    )
+    AND (
+      status = 'ready'
+      OR delivery_status IN ('assigned', 'in_delivery')
+    )
+  );
+
+-- Courier: może aktualizować delivery_status i courier_id
+CREATE POLICY "Couriers can update delivery status"
+  ON public.orders FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'courier'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'courier'
+    )
+  );
+
 -- Order items: użytkownik widzi swoje, kuchnia/admin widzi wszystkie
 CREATE POLICY "Users can view own order items"
   ON public.order_items FOR SELECT
@@ -221,6 +269,24 @@ CREATE POLICY "Staff can view all order items"
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE id = auth.uid() AND role IN ('kitchen', 'admin')
+    )
+  );
+
+-- Courier: widzi pozycje zamówień dostępnych dla kuriera
+CREATE POLICY "Couriers can view order items"
+  ON public.order_items FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.orders
+      WHERE orders.id = order_items.order_id
+        AND (
+          orders.status = 'ready'
+          OR orders.delivery_status IN ('assigned', 'in_delivery')
+        )
+    )
+    AND EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role = 'courier'
     )
   );
 
