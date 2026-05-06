@@ -283,3 +283,32 @@ export async function addBatch(data) {
   if (error) throw error;
   return result;
 }
+
+/* ──────────────── Menu item ingredients (recipes) ──────────────── */
+
+export async function getMenuItemIngredients(menuItemId) {
+  const { data, error } = await supabase
+    .from('menu_item_ingredients')
+    .select('*, ingredient:ingredients(*)')
+    .eq('menu_item_id', menuItemId);
+  if (error) throw error;
+  return data;
+}
+
+export async function addMenuItemIngredient(menuItemId, ingredientId, quantityNeeded) {
+  const { data, error } = await supabase
+    .from('menu_item_ingredients')
+    .insert([{ menu_item_id: menuItemId, ingredient_id: ingredientId, quantity_needed: quantityNeeded }])
+    .select('*, ingredient:ingredients(*)')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteMenuItemIngredient(id) {
+  const { error } = await supabase
+    .from('menu_item_ingredients')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}

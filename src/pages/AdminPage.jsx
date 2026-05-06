@@ -11,6 +11,10 @@ import {
   updateOrderStatus,
   updatePaymentStatus,
   uploadMenuImage,
+  getIngredients,
+  getMenuItemIngredients,
+  addMenuItemIngredient,
+  deleteMenuItemIngredient,
 } from '../services/api';
 
 const statusLabels = {
@@ -59,6 +63,14 @@ export default function AdminPage() {
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+
+  // Recipe modal
+  const [recipeModal, setRecipeModal] = useState(null); // menu item object or null
+  const [recipeIngredients, setRecipeIngredients] = useState([]);
+  const [allIngredients, setAllIngredients] = useState([]);
+  const [newIngredientId, setNewIngredientId] = useState('');
+  const [newIngredientQty, setNewIngredientQty] = useState('');
+  const [recipeLoading, setRecipeLoading] = useState(false);
 
   useEffect(() => {
     loadAll();
@@ -189,6 +201,59 @@ export default function AdminPage() {
     try {
       await updateUserRole(userId, newRole);
       await loadAll();
+    } catch (err) {
+      alert('Błąd: ' + err.message);
+    }
+  };
+
+  // ─── Recipe modal ───
+
+  const openRecipeModal = async (item) => {
+    setRecipeModal(item);
+    setNewIngredientId('');
+    setNewIngredientQty('');
+    setRecipeLoading(true);
+    try {
+      const [ings, allIngs] = await Promise.all([
+        getMenuItemIngredients(item.id),
+        getIngredients(),
+      ]);
+      setRecipeIngredients(ings);
+      setAllIngredients(allIngs);
+    } catch (err) {
+      alert('Błąd ładowania receptury: ' + err.message);
+    } finally {
+      setRecipeLoading(false);
+    }
+  };
+
+  const closeRecipeModal = () => {
+    setRecipeModal(null);
+    setRecipeIngredients([]);
+    setAllIngredients([]);
+  };
+
+  const handleAddIngredient = async () => {
+    if (!newIngredientId || !newIngredientQty) return;
+    try {
+      const added = await addMenuItemIngredient(
+        recipeModal.id,
+        newIngredientId,
+        parseFloat(newIngredientQty)
+      );
+      setRecipeIngredients((prev) => [...prev, added]);
+      setNewIngredientId('');
+      setNewIngredientQty('');
+    } catch (err) {
+      alert('Błąd: ' + err.message);
+    }
+  };
+
+  const handleDeleteIngredient = async (id) => {
+    if (!window.confirm('Usunąć ten składnik z receptury?')) return;
+    try {
+      await deleteMenuItemIngredient(id);
+      setRecipeIngredients((prev) => prev.filter((ri) => ri.id !== id));
     } catch (err) {
       alert('Błąd: ' + err.message);
     }
@@ -460,6 +525,12 @@ export default function AdminPage() {
                         Edytuj
                       </button>
                       <button
+                        className="btn btn-outline-info btn-sm me-1"
+                        onClick={() => openRecipeModal(item)}
+                      >
+                        Receptura
+                      </button>
+                      <button
                         className="btn btn-outline-warning btn-sm me-1"
                         onClick={() =>
                           handleToggleAvailability(item.id, item.is_available)
@@ -526,6 +597,113 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ──────── Recipe modal ──────── */}
+      {recipeModal && (
+        <div
+          className="modal d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          onClick={closeRecipeModal}
+        >
+          <div
+            className="modal-dialog modal-lg modal-dialog-centered"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Receptura: {recipeModal.name}</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={closeRecipeModal}
+                />
+              </div>
+              <div className="modal-body">
+                {recipeLoading ? (
+                  <div className="text-center py-3">
+                    <div className="spinner-border" role="status" />
+                  </div>
+                ) : (
+                  <>
+                    {/* Existing ingredients */}
+                    {recipeIngredients.length === 0 ? (
+                      <p className="text-muted">Brak składników w recepturze.</p>
+                    ) : (
+                      <table className="table table-sm mb-4">
+                        <thead>
+                          <tr>
+                            <th>Składnik</th>
+                            <th>Ilość</th>
+                            <th>Jednostka</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {recipeIngredients.map((ri) => (
+                            <tr key={ri.id}>
+                              <td>{ri.ingredient?.name || '—'}</td>
+                              <td>{ri.quantity_needed}</td>
+                              <td>{ri.ingredient?.unit || ''}</td>
+                              <td>
+                                <button
+                                  className="btn btn-outline-danger btn-sm py-0"
+                                  onClick={() => handleDeleteIngredient(ri.id)}
+                                >
+                                  ✕
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+
+                    <hr />
+                    <h6>Dodaj składnik</h6>
+                    <div className="row g-2 align-items-end">
+                      <div className="col-md-6">
+                        <select
+                          className="form-select form-select-sm"
+                          value={newIngredientId}
+                          onChange={(e) => setNewIngredientId(e.target.value)}
+                        >
+                          <option value="">— Wybierz składnik —</option>
+                          {allIngredients.map((ing) => (
+                            <option key={ing.id} value={ing.id}>
+                              {ing.name} ({ing.unit || '—'})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-md-3">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="form-control form-control-sm"
+                          placeholder="Ilość"
+                          value={newIngredientQty}
+                          onChange={(e) => setNewIngredientQty(e.target.value)}
+                        />
+                      </div>
+                      <div className="col-md-3">
+                        <button
+                          className="btn btn-success btn-sm w-100"
+                          disabled={!newIngredientId || !newIngredientQty}
+                          onClick={handleAddIngredient}
+                        >
+                          Dodaj
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
