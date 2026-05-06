@@ -11,6 +11,8 @@ Aplikacja webowa do składania zamówień w restauracji. Zbudowana z React + Vit
 - **Strona główna (wizytówka)** – hero section, o nas, opinie, stopka
 - **Płatności Stripe (sandbox)** – formularz karty po złożeniu zamówienia, integracja przez Supabase Edge Functions, status 'Opłacone'/'Nieopłacone'
 - **Automatyczne anulowanie** – nieopłacone zamówienia anulowane po 15 minutach (cron w Supabase)
+- **Panel kuriera** – rola `courier`, lista zamówień gotowych do odbioru i aktywnych dostaw, statusy dostawy (pending → assigned → in_delivery → delivered), odświeżanie co 15s
+- **Powiadomienia kuchni** – dźwięk (Web Audio API) przy nowym zamówieniu, browser push notifications, czerwony badge z licznikiem przy linku Kuchnia
 
 ## Wymagania
 
@@ -72,6 +74,7 @@ Proponowane konta do rejestracji przez formularz:
 |---------------|--------------------------|---------------------|
 | Administrator | admin@restauracja.pl     | admin123            |
 | Kuchnia       | kitchen@restauracja.pl   | kitchen123          |
+| Kurier        | kurier@restauracja.pl    | kurier123           |
 | Klient        | jan@example.com          | user123             |
 
 Po rejestracji admina wykonaj w Supabase SQL Editor:
@@ -86,6 +89,13 @@ Dla konta kuchni:
 ```sql
 UPDATE public.profiles SET role = 'kitchen'
 WHERE email = 'kitchen@restauracja.pl';
+```
+
+Dla konta kuriera:
+
+```sql
+UPDATE public.profiles SET role = 'courier'
+WHERE email = 'kurier@restauracja.pl';
 ```
 
 ## Instalacja i uruchomienie lokalne
@@ -163,7 +173,8 @@ restaurant-clean/
     ├── context/
     │   └── AuthContext.jsx
     ├── hooks/
-    │   └── useCart.js
+    │   ├── useCart.js
+    │   └── useKitchenNotifications.js
     ├── services/
     │   └── api.js
     ├── components/
@@ -179,6 +190,8 @@ restaurant-clean/
         ├── CartPage.jsx
         ├── OrdersPage.jsx
         ├── KitchenPage.jsx
+        ├── CourierPage.jsx
+        ├── WarehousePage.jsx
         └── AdminPage.jsx
 ```
 
