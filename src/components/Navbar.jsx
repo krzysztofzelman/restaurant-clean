@@ -1,10 +1,13 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import CartWidget from './CartWidget';
+import useKitchenNotifications from '../hooks/useKitchenNotifications';
 
 export default function Navbar() {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
+
+  const { newOrdersCount } = useKitchenNotifications();
 
   const handleLogout = async () => {
     try {
@@ -49,6 +52,9 @@ export default function Navbar() {
               <li className="nav-item">
                 <Link className="nav-link" to="/kitchen">
                   Kuchnia
+                  {newOrdersCount > 0 && (
+                    <span className="badge bg-danger ms-1">{newOrdersCount}</span>
+                  )}
                 </Link>
               </li>
             )}

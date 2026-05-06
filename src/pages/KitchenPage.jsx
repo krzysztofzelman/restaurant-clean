@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getAllOrders, updateOrderStatus } from '../services/api';
+import useKitchenNotifications from '../hooks/useKitchenNotifications';
 
 const statusLabels = {
   pending: 'Oczekujące',
@@ -33,6 +34,17 @@ export default function KitchenPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('active');
+
+  const { resetCount } = useKitchenNotifications();
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    // Reset the badge count when kitchen page is opened
+    resetCount();
+  }, [resetCount]);
 
   const loadOrders = useCallback(async () => {
     try {
