@@ -10,6 +10,7 @@ import {
   updateUserRole,
   updateOrderStatus,
   updatePaymentStatus,
+  uploadMenuImage,
 } from '../services/api';
 
 const statusLabels = {
@@ -54,7 +55,10 @@ export default function AdminPage() {
     price: '',
     category: '',
     is_available: true,
+    image_url: '',
   });
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
 
   useEffect(() => {
     loadAll();
@@ -110,18 +114,37 @@ export default function AdminPage() {
   const handleSaveMenuItem = async (e) => {
     e.preventDefault();
     try {
+      let imageUrl = form.image_url || null;
+
+      // If a new file was selected, upload it first
+      if (imageFile) {
+        // For new items, create a temp ID placeholder; for edits use the real ID
+        const tempId = editItem ? editItem.id : 'temp-' + Date.now();
+        imageUrl = await uploadMenuImage(imageFile, tempId);
+      }
+
       const payload = {
         name: form.name,
         description: form.description,
         price: parseFloat(form.price),
         category: form.category,
         is_available: form.is_available,
+        image_url: imageUrl,
       };
+
+      let savedItem;
       if (editItem) {
-        await updateMenuItem(editItem.id, payload);
+        savedItem = await updateMenuItem(editItem.id, payload);
       } else {
-        await addMenuItem(payload);
+        savedItem = await addMenuItem(payload);
       }
+
+      // If this was a new item uploaded with a temp ID, re-upload under the real ID
+      if (imageFile && !editItem) {
+        const finalUrl = await uploadMenuImage(imageFile, savedItem.id);
+        await updateMenuItem(savedItem.id, { image_url: finalUrl });
+      }
+
       setShowForm(false);
       setEditItem(null);
       resetForm();
@@ -139,7 +162,10 @@ export default function AdminPage() {
       price: String(item.price),
       category: item.category,
       is_available: item.is_available,
+      image_url: item.image_url || '',
     });
+    setImageFile(null);
+    setImagePreview(item.image_url || null);
     setShowForm(true);
   };
 
@@ -154,7 +180,9 @@ export default function AdminPage() {
   };
 
   const resetForm = () => {
-    setForm({ name: '', description: '', price: '', category: '', is_available: true });
+    setForm({ name: '', description: '', price: '', category: '', is_available: true, image_url: '' });
+    setImageFile(null);
+    setImagePreview(null);
   };
 
   const handleRoleChange = async (userId, newRole) => {
@@ -352,6 +380,42 @@ export default function AdminPage() {
                           setForm({ ...form, description: e.target.value })
                         }
                       />
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label">Zdjęcie</label>
+                      <input
+                        type="file"
+                        className="form-control"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            setImageFile(file);
+                            setImagePreview(URL.createObjectURL(file));
+                          }
+                        }}
+                      />
+                      {imagePreview && (
+                        <div className="mt-2">
+                          <img
+                            src={imagePreview}
+                            alt="Podgląd"
+                            className="rounded border"
+                            style={{ maxHeight: 120, objectFit: 'cover' }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger ms-2"
+                            onClick={() => {
+                              setImageFile(null);
+                              setImagePreview(null);
+                              setForm({ ...form, image_url: '' });
+                            }}
+                          >
+                            Usuń zdjęcie
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div className="col-12">
                       <button type="submit" className="btn btn-success">

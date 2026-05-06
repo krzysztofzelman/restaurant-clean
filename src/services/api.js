@@ -60,6 +60,24 @@ export async function deleteMenuItem(id) {
   if (error) throw error;
 }
 
+/* ──────────────── Menu image upload ──────────────── */
+
+export async function uploadMenuImage(file, menuItemId) {
+  const ext = file.name.split('.').pop();
+  const filePath = `${menuItemId}/${menuItemId}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('menu-images')
+    .upload(filePath, file, { upsert: true });
+  if (uploadError) throw uploadError;
+
+  const { data: publicUrlData } = supabase.storage
+    .from('menu-images')
+    .getPublicUrl(filePath);
+
+  return publicUrlData.publicUrl;
+}
+
 /* ──────────────── Orders ──────────────── */
 
 export async function createOrder({ userId, items, totalAmount, deliveryAddress, notes }) {

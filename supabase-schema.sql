@@ -27,10 +27,21 @@ CREATE TABLE IF NOT EXISTS public.menu_items (
   price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
   category TEXT NOT NULL,
   is_available BOOLEAN NOT NULL DEFAULT true,
+  image_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
+
+-- Dodanie kolumny image_url dla istniejących baz (idempotentne)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'menu_items' AND column_name = 'image_url'
+  ) THEN
+    ALTER TABLE public.menu_items ADD COLUMN image_url TEXT;
+  END IF;
+END $$;
 
 -- Zamówienia
 CREATE TABLE IF NOT EXISTS public.orders (
