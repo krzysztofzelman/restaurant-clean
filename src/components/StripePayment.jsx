@@ -80,44 +80,42 @@ function PaymentForm({ orderId, amount, onSuccess, onError }) {
           <CardElement options={cardElementOptions} />
         </div>
 
-        {import.meta.env.DEV && (
-          <div
-            className="mt-2 p-2 rounded"
-            style={{ backgroundColor: '#f0f0f0', fontSize: '0.8rem' }}
-          >
-            <p className="mb-1 fw-semibold text-secondary" style={{ fontSize: '0.75rem', letterSpacing: '0.5px' }}>
-              KARTA TESTOWA
-            </p>
-            <table className="table table-sm table-borderless mb-0" style={{ cursor: 'pointer' }}>
-              <thead>
-                <tr>
-                  <th className="text-secondary small fw-normal" style={{ width: '40%' }}>Pole</th>
-                  <th className="text-secondary small fw-normal">Wartość</th>
+        <div
+          className="mt-2 p-2 rounded"
+          style={{ backgroundColor: '#f0f0f0', fontSize: '0.8rem' }}
+        >
+          <p className="mb-1 fw-semibold text-secondary" style={{ fontSize: '0.75rem', letterSpacing: '0.5px' }}>
+            KARTA TESTOWA
+          </p>
+          <table className="table table-sm table-borderless mb-0" style={{ cursor: 'pointer' }}>
+            <thead>
+              <tr>
+                <th className="text-secondary small fw-normal" style={{ width: '40%' }}>Pole</th>
+                <th className="text-secondary small fw-normal">Wartość</th>
+              </tr>
+            </thead>
+            <tbody>
+              {testCardFields.map((field) => (
+                <tr
+                  key={field.label}
+                  onClick={field.label === 'Numer karty' ? copyCardNumber : undefined}
+                  className={field.label === 'Numer karty' ? 'align-middle' : 'align-middle'}
+                  style={field.label === 'Numer karty' ? { cursor: 'pointer' } : undefined}
+                >
+                  <td className="fw-medium">{field.label}</td>
+                  <td className="font-monospace small text-muted">
+                    {field.value}
+                    {field.label === 'Numer karty' && copied && (
+                      <span className="text-success ms-2 fw-normal" style={{ fontSize: '0.75rem' }}>
+                        ✓ skopiowano
+                      </span>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {testCardFields.map((field) => (
-                  <tr
-                    key={field.label}
-                    onClick={field.label === 'Numer karty' ? copyCardNumber : undefined}
-                    className={field.label === 'Numer karty' ? 'align-middle' : 'align-middle'}
-                    style={field.label === 'Numer karty' ? { cursor: 'pointer' } : undefined}
-                  >
-                    <td className="fw-medium">{field.label}</td>
-                    <td className="font-monospace small text-muted">
-                      {field.value}
-                      {field.label === 'Numer karty' && copied && (
-                        <span className="text-success ms-2 fw-normal" style={{ fontSize: '0.75rem' }}>
-                          ✓ skopiowano
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {error && <div className="alert alert-danger py-2 small">{error}</div>}

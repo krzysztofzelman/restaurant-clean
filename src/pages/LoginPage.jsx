@@ -80,31 +80,29 @@ export default function LoginPage() {
         Nie masz konta? <Link to="/register">Zarejestruj się</Link>
       </p>
 
-      {import.meta.env.DEV && (
-        <div className="mt-4 p-3 rounded" style={{ backgroundColor: '#f0f0f0', fontSize: '0.85rem' }}>
-          <p className="mb-2 fw-semibold text-secondary" style={{ fontSize: '0.8rem', letterSpacing: '0.5px' }}>
-            KONTA TESTOWE
-          </p>
-          <table className="table table-sm table-borderless mb-0" style={{ cursor: 'pointer' }}>
-            <thead>
-              <tr>
-                <th className="text-secondary small fw-normal">Rola</th>
-                <th className="text-secondary small fw-normal">Email</th>
-                <th className="text-secondary small fw-normal">Hasło</th>
+      <div className="mt-4 p-3 rounded" style={{ backgroundColor: '#f0f0f0', fontSize: '0.85rem' }}>
+        <p className="mb-2 fw-semibold text-secondary" style={{ fontSize: '0.8rem', letterSpacing: '0.5px' }}>
+          KONTA TESTOWE
+        </p>
+        <table className="table table-sm table-borderless mb-0" style={{ cursor: 'pointer' }}>
+          <thead>
+            <tr>
+              <th className="text-secondary small fw-normal">Rola</th>
+              <th className="text-secondary small fw-normal">Email</th>
+              <th className="text-secondary small fw-normal">Hasło</th>
+            </tr>
+          </thead>
+          <tbody>
+            {testAccounts.map((acc) => (
+              <tr key={acc.email} onClick={() => fillCredentials(acc)} className="align-middle">
+                <td className="fw-medium">{acc.role}</td>
+                <td className="font-monospace small">{acc.email}</td>
+                <td className="font-monospace small text-muted">{acc.password}</td>
               </tr>
-            </thead>
-            <tbody>
-              {testAccounts.map((acc) => (
-                <tr key={acc.email} onClick={() => fillCredentials(acc)} className="align-middle">
-                  <td className="fw-medium">{acc.role}</td>
-                  <td className="font-monospace small">{acc.email}</td>
-                  <td className="font-monospace small text-muted">{acc.password}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
