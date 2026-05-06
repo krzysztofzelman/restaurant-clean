@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getCourierOrders, updateDeliveryStatus } from '../services/api';
+import { getCourierOrders, updateDeliveryStatus, getCourierHistory } from '../services/api';
 
 const deliveryLabels = {
   pending: 'Oczekuje',
@@ -19,20 +19,25 @@ const deliveryColors = {
 export default function CourierPage() {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('available');
 
   const loadOrders = useCallback(async () => {
     try {
-      const data = await getCourierOrders();
+      const [data, historyData] = await Promise.all([
+        getCourierOrders(),
+        getCourierHistory(user.id),
+      ]);
       setOrders(data);
+      setHistory(historyData);
     } catch (err) {
       setError('Błąd ładowania zamówień: ' + err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user.id]);
 
   // Initial load + auto-refresh every 15s
   useEffect(() => {
@@ -78,9 +83,7 @@ export default function CourierPage() {
       ['assigned', 'in_delivery'].includes(o.delivery_status)
   );
 
-  const completedDeliveries = orders.filter(
-    (o) => o.courier_id === user.id && o.delivery_status === 'delivered'
-  );
+  const completedDeliveries = history;
 
   if (loading) {
     return (
@@ -122,7 +125,7 @@ export default function CourierPage() {
             className={`nav-link ${filter === 'completed' ? 'active' : ''}`}
             onClick={() => setFilter('completed')}
           >
-            Dostarczone ({completedDeliveries.length})
+            Historia ({completedDeliveries.length})
           </button>
         </li>
       </ul>

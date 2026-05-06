@@ -168,6 +168,17 @@ export async function getCourierOrders() {
   return data;
 }
 
+export async function getCourierHistory(courierId) {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)')
+    .eq('courier_id', courierId)
+    .eq('delivery_status', 'delivered')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 export async function updateDeliveryStatus(orderId, deliveryStatus, courierId) {
   const updates = { delivery_status: deliveryStatus };
   if (courierId) {
