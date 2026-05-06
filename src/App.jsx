@@ -12,6 +12,8 @@ import KitchenPage from './pages/KitchenPage';
 import AdminPage from './pages/AdminPage';
 import WarehousePage from './pages/WarehousePage';
 import CourierPage from './pages/CourierPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import UpdatePasswordPage from './pages/UpdatePasswordPage';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, profile, loading } = useAuth();
@@ -66,6 +68,8 @@ function AppRoutes() {
           </PublicRoute>
         }
       />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/update-password" element={<UpdatePasswordPage />} />
       <Route path="/menu" element={<MenuPage />} />
       <Route path="/cart" element={<CartPage />} />
       <Route
