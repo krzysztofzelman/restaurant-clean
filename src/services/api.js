@@ -179,3 +179,51 @@ export async function getAllProfiles() {
   if (error) throw error;
   return data;
 }
+
+/* ──────────────── Warehouse / Ingredients ──────────────── */
+
+export async function getIngredients() {
+  const { data, error } = await supabase
+    .from('ingredients')
+    .select('*, ingredient_batches(quantity)')
+    .order('name', { ascending: true });
+  if (error) throw error;
+  // compute total stock from batches
+  return data.map((ing) => ({
+    ...ing,
+    total_stock: (ing.ingredient_batches || []).reduce(
+      (sum, b) => sum + Number(b.quantity),
+      0
+    ),
+  }));
+}
+
+export async function getIngredientBatches(ingredientId) {
+  const { data, error } = await supabase
+    .from('ingredient_batches')
+    .select('*')
+    .eq('ingredient_id', ingredientId)
+    .order('received_at', { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+export async function addIngredient(data) {
+  const { data: result, error } = await supabase
+    .from('ingredients')
+    .insert([data])
+    .select()
+    .single();
+  if (error) throw error;
+  return result;
+}
+
+export async function addBatch(data) {
+  const { data: result, error } = await supabase
+    .from('ingredient_batches')
+    .insert([data])
+    .select()
+    .single();
+  if (error) throw error;
+  return result;
+}

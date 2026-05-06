@@ -10,6 +10,7 @@ import OrdersPage from './pages/OrdersPage';
 import HomePage from './pages/HomePage';
 import KitchenPage from './pages/KitchenPage';
 import AdminPage from './pages/AdminPage';
+import WarehousePage from './pages/WarehousePage';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, profile, loading } = useAuth();
@@ -87,6 +88,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/warehouse"
+        element={
+          <ProtectedRoute allowedRoles={['kitchen', 'admin']}>
+            <WarehousePage />
           </ProtectedRoute>
         }
       />

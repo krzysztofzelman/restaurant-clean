@@ -223,7 +223,130 @@ CREATE POLICY "Users can insert own order items"
   );
 
 -- ============================================================
--- 5. PRZYKŁADOWE DANE (opcjonalnie)
+-- 5. MAGAZYN – Składniki, partie FIFO i receptury
+-- ============================================================
+
+-- Składniki
+CREATE TABLE IF NOT EXISTS public.ingredients (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  unit TEXT NOT NULL,
+  min_stock DECIMAL NOT NULL DEFAULT 0,
+  category TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.ingredients ENABLE ROW LEVEL SECURITY;
+
+-- Partie składników (FIFO)
+CREATE TABLE IF NOT EXISTS public.ingredient_batches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ingredient_id UUID NOT NULL REFERENCES public.ingredients(id) ON DELETE CASCADE,
+  quantity DECIMAL NOT NULL,
+  cost_per_unit DECIMAL,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.ingredient_batches ENABLE ROW LEVEL SECURITY;
+
+-- Receptury (ile składnika potrzeba na danie)
+CREATE TABLE IF NOT EXISTS public.menu_item_ingredients (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  menu_item_id UUID NOT NULL REFERENCES public.menu_items(id) ON DELETE CASCADE,
+  ingredient_id UUID NOT NULL REFERENCES public.ingredients(id) ON DELETE CASCADE,
+  quantity_needed DECIMAL NOT NULL
+);
+
+ALTER TABLE public.menu_item_ingredients ENABLE ROW LEVEL SECURITY;
+
+-- RLS: Ingredients – SELECT dla wszystkich zalogowanych, INSERT/UPDATE/DELETE tylko admin
+CREATE POLICY "Staff can view ingredients"
+  ON public.ingredients FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role IN ('user', 'kitchen', 'admin')
+    )
+  );
+
+CREATE POLICY "Admins can insert ingredients"
+  ON public.ingredients FOR INSERT
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can update ingredients"
+  ON public.ingredients FOR UPDATE
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can delete ingredients"
+  ON public.ingredients FOR DELETE
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- RLS: Ingredient batches – SELECT dla wszystkich zalogowanych, INSERT/UPDATE/DELETE tylko admin
+CREATE POLICY "Staff can view ingredient batches"
+  ON public.ingredient_batches FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role IN ('user', 'kitchen', 'admin')
+    )
+  );
+
+CREATE POLICY "Admins can insert ingredient batches"
+  ON public.ingredient_batches FOR INSERT
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can update ingredient batches"
+  ON public.ingredient_batches FOR UPDATE
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can delete ingredient batches"
+  ON public.ingredient_batches FOR DELETE
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- RLS: Menu item ingredients – SELECT dla wszystkich zalogowanych, INSERT/UPDATE/DELETE tylko admin
+CREATE POLICY "Staff can view menu item ingredients"
+  ON public.menu_item_ingredients FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role IN ('user', 'kitchen', 'admin')
+    )
+  );
+
+CREATE POLICY "Admins can insert menu item ingredients"
+  ON public.menu_item_ingredients FOR INSERT
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can update menu item ingredients"
+  ON public.menu_item_ingredients FOR UPDATE
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "Admins can delete menu item ingredients"
+  ON public.menu_item_ingredients FOR DELETE
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================
+-- 6. PRZYKŁADOWE DANE (opcjonalnie)
 -- ============================================================
 
 INSERT INTO public.menu_items (name, description, price, category, is_available) VALUES
