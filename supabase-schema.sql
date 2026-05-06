@@ -47,7 +47,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS public.orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','confirmed','preparing','ready','delivered','cancelled')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','confirmed','preparing','ready','in_transit','delivered','cancelled')),
   delivery_status TEXT NOT NULL DEFAULT 'pending' CHECK (delivery_status IN ('pending','assigned','in_delivery','delivered')),
   total_amount DECIMAL(10,2) NOT NULL CHECK (total_amount >= 0),
   payment_status TEXT NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid','paid','refunded')),
@@ -223,7 +223,7 @@ CREATE POLICY "Staff can update orders"
     )
   );
 
--- Courier: widzi zamówienia ready lub swoje aktywne dostawy
+-- Courier: widzi zamówienia confirmed (gotowe do odbioru) lub in_transit (w drodze)
 CREATE POLICY "Couriers can view delivery orders"
   ON public.orders FOR SELECT
   USING (
@@ -232,12 +232,12 @@ CREATE POLICY "Couriers can view delivery orders"
       WHERE id = auth.uid() AND role = 'courier'
     )
     AND (
-      status = 'ready'
-      OR delivery_status IN ('assigned', 'in_delivery')
+      status = 'confirmed'
+      OR (status = 'in_transit' AND courier_id = auth.uid())
     )
   );
 
--- Courier: może aktualizować delivery_status i courier_id
+-- Courier: może aktualizować status i courier_id
 CREATE POLICY "Couriers can update delivery status"
   ON public.orders FOR UPDATE
   USING (
@@ -280,8 +280,8 @@ CREATE POLICY "Couriers can view order items"
       SELECT 1 FROM public.orders
       WHERE orders.id = order_items.order_id
         AND (
-          orders.status = 'ready'
-          OR orders.delivery_status IN ('assigned', 'in_delivery')
+          orders.status = 'confirmed'
+          OR (orders.status = 'in_transit' AND orders.courier_id = auth.uid())
         )
     )
     AND EXISTS (
@@ -438,3 +438,10 @@ INSERT INTO public.menu_items (name, description, price, category, is_available)
   ('Sok pomarańczowy', 'Świeżo wyciskany 0.3l', 9.00, 'Napoje', true),
   ('Naleśniki z serem', 'Z cukrem waniliowym i bitą śmietaną', 20.00, 'Desery', true)
 ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- MIGRACJA: Dodanie statusu 'in_transit' do orders
+-- ============================================================
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_status_check;
+ALTER TABLE public.orders ADD CONSTRAINT orders_status_check
+  CHECK (status IN ('pending','confirmed','preparing','ready','in_transit','delivered','cancelled'));

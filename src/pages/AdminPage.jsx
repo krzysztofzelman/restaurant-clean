@@ -22,6 +22,7 @@ const statusLabels = {
   confirmed: 'Potwierdzone',
   preparing: 'W przygotowaniu',
   ready: 'Gotowe',
+  in_transit: 'W drodze',
   delivered: 'Dostarczone',
   cancelled: 'Anulowane',
 };
@@ -31,6 +32,7 @@ const statusColors = {
   confirmed: 'info',
   preparing: 'primary',
   ready: 'success',
+  in_transit: 'dark',
   delivered: 'secondary',
   cancelled: 'danger',
 };
@@ -39,7 +41,6 @@ const nextStatus = {
   pending: 'confirmed',
   confirmed: 'preparing',
   preparing: 'ready',
-  ready: 'delivered',
 };
 
 export default function AdminPage() {

@@ -2,18 +2,16 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getCourierOrders, updateDeliveryStatus, getCourierHistory } from '../services/api';
 
-const deliveryLabels = {
-  pending: 'Oczekuje',
-  assigned: 'Przypisane',
-  in_delivery: 'W dostawie',
+const statusLabels = {
+  confirmed: 'Potwierdzone',
+  in_transit: 'W drodze',
   delivered: 'Dostarczone',
 };
 
-const deliveryColors = {
-  pending: 'secondary',
-  assigned: 'info',
-  in_delivery: 'primary',
-  delivered: 'success',
+const statusColors = {
+  confirmed: 'success',
+  in_transit: 'primary',
+  delivered: 'secondary',
 };
 
 export default function CourierPage() {
@@ -48,16 +46,7 @@ export default function CourierPage() {
 
   const handleAssign = async (orderId) => {
     try {
-      await updateDeliveryStatus(orderId, 'assigned', user.id);
-      await loadOrders();
-    } catch (err) {
-      alert('Błąd: ' + err.message);
-    }
-  };
-
-  const handleStartDelivery = async (orderId) => {
-    try {
-      await updateDeliveryStatus(orderId, 'in_delivery');
+      await updateDeliveryStatus(orderId, 'in_transit', user.id);
       await loadOrders();
     } catch (err) {
       alert('Błąd: ' + err.message);
@@ -74,13 +63,11 @@ export default function CourierPage() {
   };
 
   const availableOrders = orders.filter(
-    (o) => o.status === 'ready' && o.delivery_status === 'pending'
+    (o) => o.status === 'confirmed' && !o.courier_id
   );
 
   const myDeliveries = orders.filter(
-    (o) =>
-      o.courier_id === user.id &&
-      ['assigned', 'in_delivery'].includes(o.delivery_status)
+    (o) => o.courier_id === user.id && o.status === 'in_transit'
   );
 
   const completedDeliveries = history;
@@ -144,7 +131,7 @@ export default function CourierPage() {
                       <span className="fw-bold small">
                         #{order.id.slice(0, 8)}
                       </span>
-                      <span className="badge bg-light text-dark">Gotowe</span>
+                      <span className="badge bg-light text-dark">Gotowe do odbioru</span>
                     </div>
                     <div className="card-body">
                       <p className="mb-1 small">
@@ -206,9 +193,9 @@ export default function CourierPage() {
                         #{order.id.slice(0, 8)}
                       </span>
                       <span
-                        className={`badge bg-${deliveryColors[order.delivery_status]}`}
+                        className={`badge bg-${statusColors[order.status]}`}
                       >
-                        {deliveryLabels[order.delivery_status]}
+                        {statusLabels[order.status]}
                       </span>
                     </div>
                     <div className="card-body">
@@ -240,24 +227,12 @@ export default function CourierPage() {
                     <div className="card-footer">
                       <div className="d-flex justify-content-between align-items-center">
                         <strong>{order.total_amount.toFixed(2)} zł</strong>
-                        <div className="d-flex gap-1">
-                          {order.delivery_status === 'assigned' && (
-                            <button
-                              className="btn btn-primary btn-sm"
-                              onClick={() => handleStartDelivery(order.id)}
-                            >
-                              W drogę
-                            </button>
-                          )}
-                          {order.delivery_status === 'in_delivery' && (
-                            <button
-                              className="btn btn-success btn-sm"
-                              onClick={() => handleDelivered(order.id)}
-                            >
-                              Dostarczone
-                            </button>
-                          )}
-                        </div>
+                        <button
+                          className="btn btn-success btn-sm"
+                          onClick={() => handleDelivered(order.id)}
+                        >
+                          Dostarczone
+                        </button>
                       </div>
                     </div>
                   </div>

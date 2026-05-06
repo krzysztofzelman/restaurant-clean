@@ -11,7 +11,8 @@
       "Bash(mkdir *)",
       "Bash(npm uninstall *)",
       "Bash(rmdir *)",
-      "Bash(del *)"
+      "Bash(del *)",
+      "Bash(npm run *)"
     ]
   },
   "$version": 3

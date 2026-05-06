@@ -162,7 +162,7 @@ export async function getCourierOrders() {
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)')
-    .or('status.eq.ready,and(delivery_status.eq.assigned,delivery_status.eq.in_delivery)')
+    .or('status.eq.confirmed,and(status.eq.in_transit)')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data;
@@ -173,14 +173,14 @@ export async function getCourierHistory(courierId) {
     .from('orders')
     .select('*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)')
     .eq('courier_id', courierId)
-    .eq('delivery_status', 'delivered')
+    .eq('status', 'delivered')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data;
 }
 
-export async function updateDeliveryStatus(orderId, deliveryStatus, courierId) {
-  const updates = { delivery_status: deliveryStatus };
+export async function updateDeliveryStatus(orderId, status, courierId) {
+  const updates = { status };
   if (courierId) {
     updates.courier_id = courierId;
   }

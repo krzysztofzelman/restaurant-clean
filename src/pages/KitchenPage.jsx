@@ -25,7 +25,6 @@ const nextStatus = {
   pending: 'confirmed',
   confirmed: 'preparing',
   preparing: 'ready',
-  ready: 'delivered',
 };
 
 export default function KitchenPage() {
