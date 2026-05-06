@@ -7,7 +7,9 @@ export default function Navbar() {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
 
-  const { newOrdersCount } = useKitchenNotifications();
+  const role = profile?.role || 'user';
+
+  const { newOrdersCount } = useKitchenNotifications({ enabled: role === 'kitchen' || role === 'admin' });
 
   const handleLogout = async () => {
     try {
@@ -17,8 +19,6 @@ export default function Navbar() {
       console.error(err);
     }
   };
-
-  const role = profile?.role || 'user';
 
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">

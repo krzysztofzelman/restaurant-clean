@@ -35,7 +35,7 @@ function sendPushNotification(title, body) {
   }
 }
 
-export default function useKitchenNotifications() {
+export default function useKitchenNotifications({ enabled = true } = {}) {
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const prevPendingIdsRef = useRef(null); // null = not initialized yet
   const intervalRef = useRef(null);
@@ -80,6 +80,8 @@ export default function useKitchenNotifications() {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
+
     // Initial check
     checkForNewOrders();
 
@@ -91,7 +93,7 @@ export default function useKitchenNotifications() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [checkForNewOrders]);
+  }, [checkForNewOrders, enabled]);
 
   return { newOrdersCount, resetCount };
 }
