@@ -12,6 +12,9 @@ Aplikacja webowa do składania zamówień w restauracji. Zbudowana z React + Vit
 - **Płatności Stripe (sandbox)** – formularz karty po złożeniu zamówienia, integracja przez Supabase Edge Functions, status 'Opłacone'/'Nieopłacone'
 - **Automatyczne anulowanie** – nieopłacone zamówienia anulowane po 15 minutach (cron w Supabase)
 - **Panel kuriera** – rola `courier`, lista zamówień gotowych do odbioru i aktywnych dostaw, statusy dostawy (pending → assigned → in_delivery → delivered), odświeżanie co 15s
+- **Historia zamówień kuriera** – zakładka "Historia" w panelu kuriera z zamówieniami dostarczonymi przez zalogowanego kuriera
+- **Reset hasła** – formularz email na `/reset-password`, link resetujący przez Supabase Auth, strona ustawienia nowego hasła na `/update-password`
+- **Receptury** – powiązanie dań ze składnikami w panelu admina, modal z listą składników, dodawanie i usuwanie pozycji receptury
 - **Powiadomienia kuchni** – dźwięk (Web Audio API) przy nowym zamówieniu, browser push notifications, czerwony badge z licznikiem przy linku Kuchnia
 
 ## Wymagania
@@ -186,6 +189,8 @@ restaurant-clean/
         ├── HomePage.jsx
         ├── LoginPage.jsx
         ├── RegisterPage.jsx
+        ├── ResetPasswordPage.jsx
+        ├── UpdatePasswordPage.jsx
         ├── MenuPage.jsx
         ├── CartPage.jsx
         ├── OrdersPage.jsx
