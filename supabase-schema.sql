@@ -221,7 +221,12 @@ CREATE POLICY "Users can insert own orders"
 
 CREATE POLICY "Users can update own orders"
   ON public.orders FOR UPDATE
-  USING (auth.uid() = user_id);
+  USING (auth.uid() = user_id)
+  WITH CHECK (
+    auth.uid() = user_id
+    AND NEW.total_amount = OLD.total_amount
+    AND NEW.payment_status = OLD.payment_status
+  );
 
 CREATE POLICY "Staff can update orders"
   ON public.orders FOR UPDATE
@@ -232,7 +237,7 @@ CREATE POLICY "Staff can update orders"
     )
   );
 
--- Courier: widzi zamówienia confirmed (gotowe do odbioru) lub in_transit (w drodze)
+-- Courier: widzi zamówienia confirmed (nieprzypisane) lub in_transit (swoje)
 CREATE POLICY "Couriers can view delivery orders"
   ON public.orders FOR SELECT
   USING (
@@ -241,12 +246,12 @@ CREATE POLICY "Couriers can view delivery orders"
       WHERE id = auth.uid() AND role = 'courier'
     )
     AND (
-      status = 'confirmed'
+      (status = 'confirmed' AND courier_id IS NULL)
       OR (status = 'in_transit' AND courier_id = auth.uid())
     )
   );
 
--- Courier: może aktualizować status i courier_id
+-- Courier: może aktualizować tylko swoje zamówienia (lub nieprzypisane)
 CREATE POLICY "Couriers can update delivery status"
   ON public.orders FOR UPDATE
   USING (
@@ -254,6 +259,7 @@ CREATE POLICY "Couriers can update delivery status"
       SELECT 1 FROM public.profiles
       WHERE id = auth.uid() AND role = 'courier'
     )
+    AND (courier_id = auth.uid() OR courier_id IS NULL)
   )
   WITH CHECK (
     EXISTS (

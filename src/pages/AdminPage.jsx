@@ -591,6 +591,7 @@ export default function AdminPage() {
                     >
                       <option value="user">user</option>
                       <option value="kitchen">kitchen</option>
+                      <option value="courier">courier</option>
                       <option value="admin">admin</option>
                     </select>
                   </td>

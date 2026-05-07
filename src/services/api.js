@@ -174,7 +174,7 @@ export async function getCourierOrders() {
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)')
-    .or('status.eq.confirmed,and(status.eq.in_transit)')
+    .or('status.eq.confirmed,status.eq.in_transit')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data;
