@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart.jsx';
 import { useAuth } from '../context/AuthContext';
 import { createOrder } from '../services/api';
 import StripePayment from '../components/StripePayment';
+
+const SESSION_KEY = 'pendingOrderId';
 
 export default function CartPage() {
   const { cart, updateQuantity, removeFromCart, clearCart, totalAmount } = useCart();
@@ -14,7 +16,17 @@ export default function CartPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [placedOrder, setPlacedOrder] = useState(null);
+  const [placedOrder, setPlacedOrder] = useState(() => {
+    const saved = sessionStorage.getItem(SESSION_KEY);
+    return saved ? { id: saved } : null;
+  });
+
+  // Clear sessionStorage when payment succeeds or order is cancelled
+  useEffect(() => {
+    if (!placedOrder) {
+      sessionStorage.removeItem(SESSION_KEY);
+    }
+  }, [placedOrder]);
 
   const handlePlaceOrder = async () => {
     if (!user) {
@@ -34,7 +46,7 @@ export default function CartPage() {
         deliveryAddress,
         notes,
       });
-      // clearCart() is NOT called here — items stay until payment succeeds
+      sessionStorage.setItem(SESSION_KEY, order.id);
       setPlacedOrder(order);
     } catch (err) {
       setError('Błąd składania zamówienia: ' + err.message);
@@ -45,12 +57,20 @@ export default function CartPage() {
 
   const handlePaymentSuccess = () => {
     clearCart();
+    sessionStorage.removeItem(SESSION_KEY);
     setSuccess('Płatność udana, przekierowanie...');
     setTimeout(() => navigate('/orders'), 2000);
   };
 
-  const handlePaymentError = (msg) => {
-    setError('Błąd płatności: ' + msg);
+  const handleCancelOrder = async () => {
+    try {
+      const { updateOrderStatus } = await import('../services/api');
+      await updateOrderStatus(placedOrder.id, 'cancelled');
+    } catch {
+      // ignore error on cancel
+    }
+    sessionStorage.removeItem(SESSION_KEY);
+    setPlacedOrder(null);
   };
 
   if (cart.length === 0 && !placedOrder) {
@@ -159,12 +179,20 @@ export default function CartPage() {
               </div>
 
               {placedOrder ? (
-                <StripePayment
-                  orderId={placedOrder.id}
-                  amount={totalAmount}
-                  onSuccess={handlePaymentSuccess}
-                  onError={handlePaymentError}
-                />
+                <>
+                  <StripePayment
+                    orderId={placedOrder.id}
+                    amount={totalAmount}
+                    onSuccess={handlePaymentSuccess}
+                    onError={handlePaymentError}
+                  />
+                  <button
+                    className="btn btn-outline-danger w-100 mt-2"
+                    onClick={handleCancelOrder}
+                  >
+                    Anuluj zamówienie
+                  </button>
+                </>
               ) : (
                 <button
                   className="btn btn-success w-100"

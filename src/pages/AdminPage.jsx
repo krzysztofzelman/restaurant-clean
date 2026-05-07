@@ -106,6 +106,7 @@ export default function AdminPage() {
   };
 
   const handlePaymentToggle = async (orderId, currentStatus) => {
+    if (!window.confirm('Czy na pewno chcesz zmienić status płatności?')) return;
     const newStatus = currentStatus === 'paid' ? 'unpaid' : 'paid';
     try {
       await updatePaymentStatus(orderId, newStatus);

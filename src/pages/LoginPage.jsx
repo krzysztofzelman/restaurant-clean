@@ -23,6 +23,10 @@ export default function LoginPage() {
     setEmail(acc.email);
     setPassword(acc.password);
     setError('');
+    // Auto-submit after a short delay to let state update
+    setTimeout(() => {
+      document.getElementById('login-form').requestSubmit();
+    }, 50);
   };
 
   const handleSubmit = async (e) => {
@@ -46,7 +50,7 @@ export default function LoginPage() {
         <div className="alert alert-success">Hasło zostało pomyślnie zmienione. Możesz się zalogować nowym hasłem.</div>
       )}
       {error && <div className="alert alert-danger">{error}</div>}
-      <form onSubmit={handleSubmit}>
+      <form id="login-form" onSubmit={handleSubmit}>
         <div className="mb-3">
           <label className="form-label">Email</label>
           <input

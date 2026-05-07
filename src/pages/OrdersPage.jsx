@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getMyOrders } from '../services/api';
 
@@ -24,6 +25,7 @@ const statusColors = {
 
 export default function OrdersPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -118,8 +120,18 @@ export default function OrdersPage() {
                     </div>
                   </div>
                 </div>
-                <div className="card-footer text-end">
-                  <strong>Razem: {order.total_amount.toFixed(2)} zł</strong>
+                <div className="card-footer d-flex justify-content-between align-items-center">
+                  <div>
+                    {order.payment_status !== 'paid' && (order.status === 'pending' || order.status === 'confirmed') && (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => navigate('/cart')}
+                      >
+                        Zapłać teraz
+                      </button>
+                    )}
+                  </div>
+                  <strong>{order.total_amount.toFixed(2)} zł</strong>
                 </div>
               </div>
             </div>
