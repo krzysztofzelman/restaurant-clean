@@ -184,26 +184,30 @@ export default function KitchenPage() {
                 <div className="card-footer">
                   <div className="d-flex justify-content-between align-items-center">
                     <strong>{order.total_amount.toFixed(2)} zł</strong>
-                    <div className="d-flex gap-1">
-                      {nextStatus[order.status] && (
-                        <button
-                          className="btn btn-success btn-sm"
-                          onClick={() =>
-                            handleStatusChange(order.id, nextStatus[order.status])
-                          }
-                        >
-                          {statusLabels[nextStatus[order.status]]}
-                        </button>
-                      )}
-                      {order.status !== 'cancelled' && order.status !== 'delivered' && (
-                        <button
-                          className="btn btn-outline-danger btn-sm"
-                          onClick={() => handleStatusChange(order.id, 'cancelled')}
-                        >
-                          Anuluj
-                        </button>
-                      )}
-                    </div>
+                    {order.payment_status !== 'paid' ? (
+                      <span className="badge bg-warning text-dark">Oczekuje na płatność</span>
+                    ) : (
+                      <div className="d-flex gap-1">
+                        {nextStatus[order.status] && (
+                          <button
+                            className="btn btn-success btn-sm"
+                            onClick={() =>
+                              handleStatusChange(order.id, nextStatus[order.status])
+                            }
+                          >
+                            {statusLabels[nextStatus[order.status]]}
+                          </button>
+                        )}
+                        {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                          <button
+                            className="btn btn-outline-danger btn-sm"
+                            onClick={() => handleStatusChange(order.id, 'cancelled')}
+                          >
+                            Anuluj
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
