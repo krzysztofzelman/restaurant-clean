@@ -9,7 +9,8 @@ const cardElementOptions = {
   style: {
     base: {
       fontSize: '16px',
-      color: '#212529',
+      color: '#1a1a1a',
+      backgroundColor: '#ffffff',
       '::placeholder': { color: '#6c757d' },
     },
     invalid: { color: '#dc3545' },

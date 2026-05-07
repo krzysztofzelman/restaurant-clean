@@ -75,7 +75,7 @@ export default function Navbar() {
             {role === 'courier' && (
               <li className="nav-item">
                 <Link className="nav-link" to="/courier">
-                  Dostawy
+                  Dostawa
                 </Link>
               </li>
             )}
