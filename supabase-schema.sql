@@ -163,6 +163,15 @@ CREATE POLICY "Admins can view all profiles"
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
+CREATE POLICY "Staff can view all profiles"
+  ON public.profiles FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role IN ('kitchen', 'admin')
+    )
+  );
+
 CREATE POLICY "Admins can update profiles"
   ON public.profiles FOR UPDATE
   USING (
