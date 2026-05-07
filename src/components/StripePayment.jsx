@@ -15,6 +15,7 @@ const cardElementOptions = {
     },
     invalid: { color: '#dc3545' },
   },
+  hidePostalCode: true,
 };
 
 const testCardFields = [
