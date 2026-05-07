@@ -445,3 +445,83 @@ ON CONFLICT DO NOTHING;
 ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_status_check;
 ALTER TABLE public.orders ADD CONSTRAINT orders_status_check
   CHECK (status IN ('pending','confirmed','preparing','ready','in_transit','delivered','cancelled'));
+
+-- ============================================================
+-- 7. FUNKCJA FIFO: odejmowanie składników z magazynu po potwierdzeniu zamówienia
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.consume_ingredients_for_order(p_order_id UUID)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  r RECORD;
+  v_needed DECIMAL;
+  v_remaining DECIMAL;
+  v_batch_qty DECIMAL;
+  v_batch_id UUID;
+  v_shortage BOOLEAN := false;
+BEGIN
+  -- Dla każdej pozycji zamówienia pobierz potrzebne składniki z receptury
+  FOR r IN
+    SELECT
+      oi.quantity AS order_qty,
+      mii.ingredient_id,
+      mii.quantity_needed,
+      i.name AS ingredient_name
+    FROM public.order_items oi
+    JOIN public.menu_item_ingredients mii ON mii.menu_item_id = oi.menu_item_id
+    JOIN public.ingredients i ON i.id = mii.ingredient_id
+    WHERE oi.order_id = p_order_id
+  LOOP
+    v_needed := r.order_qty * r.quantity_needed;
+    v_remaining := v_needed;
+
+    -- Pobierz najstarsze partie (FIFO) dla tego składnika
+    FOR v_batch_id, v_batch_qty IN
+      SELECT ib.id, ib.quantity
+      FROM public.ingredient_batches ib
+      WHERE ib.ingredient_id = r.ingredient_id
+        AND ib.quantity > 0
+      ORDER BY ib.received_at ASC, ib.id ASC
+    LOOP
+      IF v_remaining <= 0 THEN
+        EXIT;
+      END IF;
+
+      IF v_batch_qty >= v_remaining THEN
+        -- W tej partii jest wystarczająco
+        UPDATE public.ingredient_batches
+        SET quantity = quantity - v_remaining
+        WHERE id = v_batch_id;
+        v_remaining := 0;
+      ELSE
+        -- Partia nie wystarcza, bierzemy całość i idziemy dalej
+        v_remaining := v_remaining - v_batch_qty;
+        UPDATE public.ingredient_batches
+        SET quantity = 0
+        WHERE id = v_batch_id;
+      END IF;
+    END LOOP;
+
+    -- Jeśli po wyczerpaniu wszystkich partii wciąż brakuje
+    IF v_remaining > 0 THEN
+      v_shortage := true;
+      RAISE WARNING 'Niedobór składnika "%": brakuje % (potrzebne %, dostępne %)',
+        r.ingredient_name,
+        v_remaining,
+        v_needed,
+        v_needed - v_remaining;
+    END IF;
+  END LOOP;
+
+  -- Usuń partie, które osiągnęły 0 (sprzątanie)
+  DELETE FROM public.ingredient_batches
+  WHERE quantity <= 0;
+
+  IF v_shortage THEN
+    RAISE WARNING 'Zamówienie % zostało potwierdzone, ale niektóre składniki są niedostępne.', p_order_id;
+  END IF;
+END;
+$$;

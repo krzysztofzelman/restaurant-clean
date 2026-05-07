@@ -142,6 +142,18 @@ export async function updateOrderStatus(orderId, status) {
     .select()
     .single();
   if (error) throw error;
+
+  // Gdy zamówienie jest potwierdzane — odejmij składniki z magazynu (FIFO)
+  if (status === 'confirmed') {
+    const { error: consumeError } = await supabase.rpc('consume_ingredients_for_order', {
+      p_order_id: orderId,
+    });
+    if (consumeError) {
+      // Logujemy błąd, ale nie blokujemy — zamówienie już jest potwierdzone
+      console.warn('Błąd podczas odejmowania składników (zamówienie potwierdzone):', consumeError);
+    }
+  }
+
   return data;
 }
 
