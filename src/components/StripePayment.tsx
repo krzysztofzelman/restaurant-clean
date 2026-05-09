@@ -1,9 +1,16 @@
 import { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import {
+  Elements,
+  CardElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js';
 import { createPaymentIntent, updatePaymentStatus } from '../services/api';
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+const stripePromise = loadStripe(
+  import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string,
+);
 
 const cardElementOptions = {
   style: {
@@ -24,7 +31,14 @@ const testCardFields = [
   { label: 'CVC', value: 'dowolne 3 cyfry' },
 ];
 
-function PaymentForm({ orderId, amount, onSuccess, onError }) {
+interface PaymentFormProps {
+  orderId: string;
+  amount: number;
+  onSuccess?: () => void;
+  onError?: (message: string) => void;
+}
+
+function PaymentForm({ orderId, amount, onSuccess, onError }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [processing, setProcessing] = useState(false);
@@ -41,7 +55,7 @@ function PaymentForm({ orderId, amount, onSuccess, onError }) {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements) return;
 
@@ -51,24 +65,31 @@ function PaymentForm({ orderId, amount, onSuccess, onError }) {
     try {
       const { clientSecret } = await createPaymentIntent(orderId, amount);
 
-      const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(
-        clientSecret,
-        { payment_method: { card: elements.getElement(CardElement) } }
-      );
-
-      if (confirmError) {
-        setError(confirmError.message);
-        onError?.(confirmError.message);
+      const cardElement = elements.getElement(CardElement);
+      if (!cardElement) {
+        setError('Nie znaleziono elementu karty.');
         return;
       }
 
-      if (paymentIntent.status === 'succeeded') {
+      const { error: confirmError, paymentIntent } =
+        await stripe.confirmCardPayment(clientSecret, {
+          payment_method: { card: cardElement },
+        });
+
+      if (confirmError) {
+        setError(confirmError.message ?? '');
+        onError?.(confirmError.message ?? '');
+        return;
+      }
+
+      if (paymentIntent && paymentIntent.status === 'succeeded') {
         await updatePaymentStatus(orderId, 'paid');
         onSuccess?.();
       }
-    } catch (err) {
-      setError(err.message);
-      onError?.(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Wystąpił błąd płatności';
+      setError(message);
+      onError?.(message);
     } finally {
       setProcessing(false);
     }
@@ -86,13 +107,27 @@ function PaymentForm({ orderId, amount, onSuccess, onError }) {
           className="mt-2 p-2 rounded"
           style={{ backgroundColor: '#f0f0f0', fontSize: '0.8rem' }}
         >
-          <p className="mb-1 fw-semibold text-secondary" style={{ fontSize: '0.75rem', letterSpacing: '0.5px' }}>
+          <p
+            className="mb-1 fw-semibold text-secondary"
+            style={{
+              fontSize: '0.75rem',
+              letterSpacing: '0.5px',
+            }}
+          >
             KARTA TESTOWA
           </p>
-          <table className="table table-sm table-borderless mb-0" style={{ cursor: 'pointer' }}>
+          <table
+            className="table table-sm table-borderless mb-0"
+            style={{ cursor: 'pointer' }}
+          >
             <thead>
               <tr>
-                <th className="text-secondary small fw-normal" style={{ width: '40%' }}>Pole</th>
+                <th
+                  className="text-secondary small fw-normal"
+                  style={{ width: '40%' }}
+                >
+                  Pole
+                </th>
                 <th className="text-secondary small fw-normal">Wartość</th>
               </tr>
             </thead>
@@ -100,15 +135,26 @@ function PaymentForm({ orderId, amount, onSuccess, onError }) {
               {testCardFields.map((field) => (
                 <tr
                   key={field.label}
-                  onClick={field.label === 'Numer karty' ? copyCardNumber : undefined}
-                  className={field.label === 'Numer karty' ? 'align-middle' : 'align-middle'}
-                  style={field.label === 'Numer karty' ? { cursor: 'pointer' } : undefined}
+                  onClick={
+                    field.label === 'Numer karty'
+                      ? copyCardNumber
+                      : undefined
+                  }
+                  className="align-middle"
+                  style={
+                    field.label === 'Numer karty'
+                      ? { cursor: 'pointer' }
+                      : undefined
+                  }
                 >
                   <td className="fw-medium">{field.label}</td>
                   <td className="font-monospace small text-muted">
                     {field.value}
                     {field.label === 'Numer karty' && copied && (
-                      <span className="text-success ms-2 fw-normal" style={{ fontSize: '0.75rem' }}>
+                      <span
+                        className="text-success ms-2 fw-normal"
+                        style={{ fontSize: '0.75rem' }}
+                      >
                         ✓ skopiowano
                       </span>
                     )}
@@ -120,20 +166,36 @@ function PaymentForm({ orderId, amount, onSuccess, onError }) {
         </div>
       </div>
 
-      {error && <div className="alert alert-danger py-2 small">{error}</div>}
+      {error && (
+        <div className="alert alert-danger py-2 small">{error}</div>
+      )}
 
       <button
         type="submit"
         className="btn btn-primary w-100"
         disabled={!stripe || processing}
       >
-        {processing ? 'Przetwarzanie...' : `Zapłać ${amount.toFixed(2)} zł`}
+        {processing
+          ? 'Przetwarzanie...'
+          : `Zapłać ${amount.toFixed(2)} zł`}
       </button>
     </form>
   );
 }
 
-export default function StripePayment({ orderId, amount, onSuccess, onError }) {
+interface StripePaymentProps {
+  orderId: string;
+  amount: number;
+  onSuccess?: () => void;
+  onError?: (message: string) => void;
+}
+
+export default function StripePayment({
+  orderId,
+  amount,
+  onSuccess,
+  onError,
+}: StripePaymentProps) {
   return (
     <Elements stripe={stripePromise}>
       <PaymentForm

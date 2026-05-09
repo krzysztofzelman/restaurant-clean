@@ -16,7 +16,8 @@
       "Bash(python *)",
       "Bash(powershell *)",
       "Bash(node *)",
-      "Bash(ren *)"
+      "Bash(ren *)",
+      "Bash(findstr *)"
     ]
   },
   "$version": 4

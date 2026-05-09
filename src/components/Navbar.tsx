@@ -9,7 +9,9 @@ export default function Navbar() {
 
   const role = profile?.role || 'user';
 
-  const { newOrdersCount } = useKitchenNotifications({ enabled: role === 'kitchen' || role === 'admin' });
+  const { newOrdersCount } = useKitchenNotifications({
+    enabled: role === 'kitchen' || role === 'admin',
+  });
 
   const handleLogout = async () => {
     try {
@@ -60,7 +62,9 @@ export default function Navbar() {
                 <Link className="nav-link" to="/kitchen">
                   Kuchnia
                   {newOrdersCount > 0 && (
-                    <span className="badge bg-danger ms-1">{newOrdersCount}</span>
+                    <span className="badge bg-danger ms-1">
+                      {newOrdersCount}
+                    </span>
                   )}
                 </Link>
               </li>
@@ -95,7 +99,10 @@ export default function Navbar() {
                   {profile?.full_name || user.email}
                   <span className="badge bg-secondary ms-1">{role}</span>
                 </span>
-                <button className="btn btn-outline-light btn-sm" onClick={handleLogout}>
+                <button
+                  className="btn btn-outline-light btn-sm"
+                  onClick={handleLogout}
+                >
                   Wyloguj
                 </button>
               </>

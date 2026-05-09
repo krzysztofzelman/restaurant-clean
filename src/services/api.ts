@@ -1,8 +1,17 @@
 import { supabase } from '../lib/supabaseClient';
+import type {
+  MenuItem,
+  Order,
+  OrderWithRelations,
+  Profile,
+  IngredientWithBatches,
+  IngredientBatch,
+  MenuItemIngredientWithIngredient,
+} from '../lib/database.types';
 
 /* ──────────────── Menu items ──────────────── */
 
-export async function getMenuItems() {
+export async function getMenuItems(): Promise<MenuItem[]> {
   const { data, error } = await supabase
     .from('menu_items')
     .select('*')
@@ -13,7 +22,7 @@ export async function getMenuItems() {
   return data;
 }
 
-export async function getAllMenuItems() {
+export async function getAllMenuItems(): Promise<MenuItem[]> {
   const { data, error } = await supabase
     .from('menu_items')
     .select('*')
@@ -23,7 +32,10 @@ export async function getAllMenuItems() {
   return data;
 }
 
-export async function toggleMenuItemAvailability(id, isAvailable) {
+export async function toggleMenuItemAvailability(
+  id: string,
+  isAvailable: boolean,
+): Promise<MenuItem> {
   const { data, error } = await supabase
     .from('menu_items')
     .update({ is_available: isAvailable })
@@ -34,7 +46,9 @@ export async function toggleMenuItemAvailability(id, isAvailable) {
   return data;
 }
 
-export async function addMenuItem(item) {
+export async function addMenuItem(
+  item: Omit<MenuItem, 'id' | 'created_at'>,
+): Promise<MenuItem> {
   const { data, error } = await supabase
     .from('menu_items')
     .insert([item])
@@ -44,7 +58,10 @@ export async function addMenuItem(item) {
   return data;
 }
 
-export async function updateMenuItem(id, updates) {
+export async function updateMenuItem(
+  id: string,
+  updates: Partial<Omit<MenuItem, 'id' | 'created_at'>>,
+): Promise<MenuItem> {
   const { data, error } = await supabase
     .from('menu_items')
     .update(updates)
@@ -55,14 +72,17 @@ export async function updateMenuItem(id, updates) {
   return data;
 }
 
-export async function deleteMenuItem(id) {
+export async function deleteMenuItem(id: string): Promise<void> {
   const { error } = await supabase.from('menu_items').delete().eq('id', id);
   if (error) throw error;
 }
 
 /* ──────────────── Menu image upload ──────────────── */
 
-export async function uploadMenuImage(file, menuItemId) {
+export async function uploadMenuImage(
+  file: File,
+  menuItemId: string,
+): Promise<string> {
   const ext = file.name.split('.').pop();
   const filePath = `${menuItemId}/${menuItemId}.${ext}`;
 
@@ -80,7 +100,21 @@ export async function uploadMenuImage(file, menuItemId) {
 
 /* ──────────────── Orders ──────────────── */
 
-export async function createOrder({ userId, items, totalAmount, deliveryAddress, notes }) {
+interface CreateOrderParams {
+  userId: string;
+  items: { id: string; quantity: number; price: number }[];
+  totalAmount: number;
+  deliveryAddress?: string;
+  notes?: string;
+}
+
+export async function createOrder({
+  userId,
+  items,
+  totalAmount,
+  deliveryAddress,
+  notes,
+}: CreateOrderParams): Promise<Order> {
   // 1. create order
   const { data: order, error: orderError } = await supabase
     .from('orders')
@@ -115,26 +149,33 @@ export async function createOrder({ userId, items, totalAmount, deliveryAddress,
   return order;
 }
 
-export async function getMyOrders(userId) {
+export async function getMyOrders(
+  userId: string,
+): Promise<OrderWithRelations[]> {
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items:order_items(*, menu_item:menu_items(*))')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data;
+  return data as unknown as OrderWithRelations[];
 }
 
-export async function getAllOrders() {
+export async function getAllOrders(): Promise<OrderWithRelations[]> {
   const { data, error } = await supabase
     .from('orders')
-    .select('*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)')
+    .select(
+      '*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)',
+    )
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data;
+  return data as unknown as OrderWithRelations[];
 }
 
-export async function updateOrderStatus(orderId, status) {
+export async function updateOrderStatus(
+  orderId: string,
+  status: string,
+): Promise<Order> {
   const { data, error } = await supabase
     .from('orders')
     .update({ status })
@@ -145,19 +186,28 @@ export async function updateOrderStatus(orderId, status) {
 
   // Gdy zamówienie jest potwierdzane — odejmij składniki z magazynu (FIFO)
   if (status === 'confirmed') {
-    const { error: consumeError } = await supabase.rpc('consume_ingredients_for_order', {
-      p_order_id: orderId,
-    });
+    const { error: consumeError } = await supabase.rpc(
+      'consume_ingredients_for_order',
+      {
+        p_order_id: orderId,
+      },
+    );
     if (consumeError) {
       // Logujemy błąd, ale nie blokujemy — zamówienie już jest potwierdzone
-      console.warn('Błąd podczas odejmowania składników (zamówienie potwierdzone):', consumeError);
+      console.warn(
+        'Błąd podczas odejmowania składników (zamówienie potwierdzone):',
+        consumeError,
+      );
     }
   }
 
   return data;
 }
 
-export async function updatePaymentStatus(orderId, paymentStatus) {
+export async function updatePaymentStatus(
+  orderId: string,
+  paymentStatus: string,
+): Promise<Order> {
   const { data, error } = await supabase
     .from('orders')
     .update({ payment_status: paymentStatus })
@@ -170,29 +220,39 @@ export async function updatePaymentStatus(orderId, paymentStatus) {
 
 /* ──────────────── Courier / Delivery ──────────────── */
 
-export async function getCourierOrders() {
+export async function getCourierOrders(): Promise<OrderWithRelations[]> {
   const { data, error } = await supabase
     .from('orders')
-    .select('*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)')
+    .select(
+      '*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)',
+    )
     .or('status.eq.ready,status.eq.in_transit')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data;
+  return data as unknown as OrderWithRelations[];
 }
 
-export async function getCourierHistory(courierId) {
+export async function getCourierHistory(
+  courierId: string,
+): Promise<OrderWithRelations[]> {
   const { data, error } = await supabase
     .from('orders')
-    .select('*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)')
+    .select(
+      '*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)',
+    )
     .eq('courier_id', courierId)
     .eq('status', 'delivered')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data;
+  return data as unknown as OrderWithRelations[];
 }
 
-export async function updateDeliveryStatus(orderId, status, courierId) {
-  const updates = { status };
+export async function updateDeliveryStatus(
+  orderId: string,
+  status: string,
+  courierId?: string,
+): Promise<void> {
+  const updates: Record<string, string> = { status };
   if (courierId) {
     updates.courier_id = courierId;
   }
@@ -205,17 +265,23 @@ export async function updateDeliveryStatus(orderId, status, courierId) {
 
 /* ──────────────── Stripe payment ──────────────── */
 
-export async function createPaymentIntent(orderId, amount) {
-  const { data, error } = await supabase.functions.invoke('create-payment-intent', {
-    body: { orderId, amount },
-  });
+export async function createPaymentIntent(
+  orderId: string,
+  amount: number,
+): Promise<{ clientSecret: string }> {
+  const { data, error } = await supabase.functions.invoke(
+    'create-payment-intent',
+    {
+      body: { orderId, amount },
+    },
+  );
   if (error) throw error;
-  return data; // { clientSecret }
+  return data as { clientSecret: string };
 }
 
 /* ──────────────── User profile ──────────────── */
 
-export async function getUserProfile(userId) {
+export async function getUserProfile(userId: string): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
@@ -225,7 +291,10 @@ export async function getUserProfile(userId) {
   return data;
 }
 
-export async function updateUserRole(userId, role) {
+export async function updateUserRole(
+  userId: string,
+  role: string,
+): Promise<Profile> {
   const { data, error } = await supabase
     .from('profiles')
     .update({ role })
@@ -236,7 +305,7 @@ export async function updateUserRole(userId, role) {
   return data;
 }
 
-export async function getAllProfiles() {
+export async function getAllProfiles(): Promise<Profile[]> {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
@@ -247,23 +316,27 @@ export async function getAllProfiles() {
 
 /* ──────────────── Warehouse / Ingredients ──────────────── */
 
-export async function getIngredients() {
+export async function getIngredients(): Promise<
+  (IngredientWithBatches & { total_stock: number })[]
+> {
   const { data, error } = await supabase
     .from('ingredients')
     .select('*, ingredient_batches(quantity)')
     .order('name', { ascending: true });
   if (error) throw error;
   // compute total stock from batches
-  return data.map((ing) => ({
+  return data.map((ing: IngredientWithBatches) => ({
     ...ing,
     total_stock: (ing.ingredient_batches || []).reduce(
-      (sum, b) => sum + Number(b.quantity),
-      0
+      (sum: number, b: { quantity: number }) => sum + Number(b.quantity),
+      0,
     ),
   }));
 }
 
-export async function getIngredientBatches(ingredientId) {
+export async function getIngredientBatches(
+  ingredientId: string,
+): Promise<IngredientBatch[]> {
   const { data, error } = await supabase
     .from('ingredient_batches')
     .select('*')
@@ -273,7 +346,9 @@ export async function getIngredientBatches(ingredientId) {
   return data;
 }
 
-export async function addIngredient(data) {
+export async function addIngredient(
+  data: Omit<IngredientWithBatches, 'id' | 'created_at' | 'total_stock' | 'ingredient_batches'>,
+): Promise<IngredientWithBatches> {
   const { data: result, error } = await supabase
     .from('ingredients')
     .insert([data])
@@ -283,7 +358,9 @@ export async function addIngredient(data) {
   return result;
 }
 
-export async function addBatch(data) {
+export async function addBatch(
+  data: Omit<IngredientBatch, 'id' | 'created_at'>,
+): Promise<IngredientBatch> {
   const { data: result, error } = await supabase
     .from('ingredient_batches')
     .insert([data])
@@ -295,26 +372,38 @@ export async function addBatch(data) {
 
 /* ──────────────── Menu item ingredients (recipes) ──────────────── */
 
-export async function getMenuItemIngredients(menuItemId) {
+export async function getMenuItemIngredients(
+  menuItemId: string,
+): Promise<MenuItemIngredientWithIngredient[]> {
   const { data, error } = await supabase
     .from('menu_item_ingredients')
     .select('*, ingredient:ingredients(*)')
     .eq('menu_item_id', menuItemId);
   if (error) throw error;
-  return data;
+  return data as unknown as MenuItemIngredientWithIngredient[];
 }
 
-export async function addMenuItemIngredient(menuItemId, ingredientId, quantityNeeded) {
+export async function addMenuItemIngredient(
+  menuItemId: string,
+  ingredientId: string,
+  quantityNeeded: number,
+): Promise<MenuItemIngredientWithIngredient> {
   const { data, error } = await supabase
     .from('menu_item_ingredients')
-    .insert([{ menu_item_id: menuItemId, ingredient_id: ingredientId, quantity_needed: quantityNeeded }])
+    .insert([
+      {
+        menu_item_id: menuItemId,
+        ingredient_id: ingredientId,
+        quantity_needed: quantityNeeded,
+      },
+    ])
     .select('*, ingredient:ingredients(*)')
     .single();
   if (error) throw error;
-  return data;
+  return data as unknown as MenuItemIngredientWithIngredient;
 }
 
-export async function deleteMenuItemIngredient(id) {
+export async function deleteMenuItemIngredient(id: string): Promise<void> {
   const { error } = await supabase
     .from('menu_item_ingredients')
     .delete()
