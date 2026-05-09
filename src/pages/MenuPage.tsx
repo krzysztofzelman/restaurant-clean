@@ -1,35 +1,37 @@
 import { useEffect, useState } from 'react';
 import { getMenuItems } from '../services/api';
 import MenuCard from '../components/MenuCard';
+import type { MenuItem } from '../lib/database.types';
 
 export default function MenuPage() {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
 
   useEffect(() => {
-    loadItems();
+    getMenuItems()
+      .then((data) => {
+        setItems(data);
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        setError(
+          'Nie udało się załadować menu: ' +
+            (err instanceof Error ? err.message : String(err)),
+        );
+        setLoading(false);
+      });
   }, []);
 
-  async function loadItems() {
-    try {
-      setLoading(true);
-      const data = await getMenuItems();
-      setItems(data);
-    } catch (err) {
-      setError('Nie udało się załadować menu: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const categories: string[] = [
+    ...new Set(items.map((item: MenuItem) => item.category)),
+  ];
 
-  const categories = [...new Set(items.map((item) => item.category))];
-
-  const filteredItems =
+  const filteredItems: MenuItem[] =
     activeCategory === 'all'
       ? items
-      : items.filter((item) => item.category === activeCategory);
+      : items.filter((item: MenuItem) => item.category === activeCategory);
 
   if (loading) {
     return (
@@ -78,7 +80,7 @@ export default function MenuPage() {
         <p className="text-muted">Brak dań w tej kategorii.</p>
       ) : (
         <div className="row g-4">
-          {filteredItems.map((item) => (
+          {filteredItems.map((item: MenuItem) => (
             <div key={item.id} className="col-12 col-sm-6 col-lg-4 col-xl-3">
               <MenuCard item={item} />
             </div>

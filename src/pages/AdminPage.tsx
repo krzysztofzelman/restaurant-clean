@@ -16,8 +16,27 @@ import {
   addMenuItemIngredient,
   deleteMenuItemIngredient,
 } from '../services/api';
+import type {
+  MenuItem,
+  OrderWithRelations,
+  Profile,
+  OrderStatus,
+  MenuItemIngredientWithIngredient,
+  IngredientWithBatches,
+} from '../lib/database.types';
 
-const statusLabels = {
+type Tab = 'orders' | 'menu' | 'users';
+
+interface MenuItemForm {
+  name: string;
+  description: string;
+  price: string;
+  category: string;
+  is_available: boolean;
+  image_url: string;
+}
+
+const statusLabels: Record<OrderStatus, string> = {
   pending: 'Oczekujące',
   confirmed: 'Potwierdzone',
   preparing: 'W przygotowaniu',
@@ -27,7 +46,7 @@ const statusLabels = {
   cancelled: 'Anulowane',
 };
 
-const statusColors = {
+const statusColors: Record<OrderStatus, string> = {
   pending: 'warning',
   confirmed: 'info',
   preparing: 'primary',
@@ -37,24 +56,24 @@ const statusColors = {
   cancelled: 'danger',
 };
 
-const nextStatus = {
+const nextStatus: Partial<Record<OrderStatus, OrderStatus>> = {
   pending: 'confirmed',
   confirmed: 'preparing',
   preparing: 'ready',
 };
 
 export default function AdminPage() {
-  const [tab, setTab] = useState('orders');
-  const [orders, setOrders] = useState([]);
-  const [menuItems, setMenuItems] = useState([]);
-  const [profiles, setProfiles] = useState([]);
+  const [tab, setTab] = useState<Tab>('orders');
+  const [orders, setOrders] = useState<OrderWithRelations[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   // New menu item form
   const [showForm, setShowForm] = useState(false);
-  const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState({
+  const [editItem, setEditItem] = useState<MenuItem | null>(null);
+  const [form, setForm] = useState<MenuItemForm>({
     name: '',
     description: '',
     price: '',
@@ -62,13 +81,17 @@ export default function AdminPage() {
     is_available: true,
     image_url: '',
   });
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // Recipe modal
-  const [recipeModal, setRecipeModal] = useState(null); // menu item object or null
-  const [recipeIngredients, setRecipeIngredients] = useState([]);
-  const [allIngredients, setAllIngredients] = useState([]);
+  const [recipeModal, setRecipeModal] = useState<MenuItem | null>(null);
+  const [recipeIngredients, setRecipeIngredients] = useState<
+    MenuItemIngredientWithIngredient[]
+  >([]);
+  const [allIngredients, setAllIngredients] = useState<IngredientWithBatches[]>(
+    [],
+  );
   const [newIngredientId, setNewIngredientId] = useState('');
   const [newIngredientQty, setNewIngredientQty] = useState('');
   const [recipeLoading, setRecipeLoading] = useState(false);
@@ -89,50 +112,55 @@ export default function AdminPage() {
       setOrders(o);
       setMenuItems(m);
       setProfiles(p);
-    } catch (err) {
-      setError('Błąd ładowania danych: ' + err.message);
+    } catch (err: unknown) {
+      setError(
+        'Błąd ładowania danych: ' +
+          (err instanceof Error ? err.message : String(err)),
+      );
     } finally {
       setLoading(false);
     }
   }
 
-  const handleStatusChange = async (orderId, newStatus) => {
+  async function handleStatusChange(orderId: string, newStatus: OrderStatus) {
     try {
       await updateOrderStatus(orderId, newStatus);
       await loadAll();
-    } catch (err) {
-      alert('Błąd: ' + err.message);
+    } catch (err: unknown) {
+      alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
     }
-  };
+  }
 
-  const handlePaymentToggle = async (orderId, currentStatus) => {
+  async function handlePaymentToggle(
+    orderId: string,
+    currentStatus: string,
+  ) {
     if (!window.confirm('Czy na pewno chcesz zmienić status płatności?')) return;
     const newStatus = currentStatus === 'paid' ? 'unpaid' : 'paid';
     try {
       await updatePaymentStatus(orderId, newStatus);
       await loadAll();
-    } catch (err) {
-      alert('Błąd: ' + err.message);
+    } catch (err: unknown) {
+      alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
     }
-  };
+  }
 
-  const handleToggleAvailability = async (id, current) => {
+  async function handleToggleAvailability(id: string, current: boolean) {
     try {
       await toggleMenuItemAvailability(id, !current);
       await loadAll();
-    } catch (err) {
-      alert('Błąd: ' + err.message);
+    } catch (err: unknown) {
+      alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
     }
-  };
+  }
 
-  const handleSaveMenuItem = async (e) => {
+  async function handleSaveMenuItem(e: React.FormEvent) {
     e.preventDefault();
     try {
-      let imageUrl = form.image_url || null;
+      let imageUrl: string | null = form.image_url || null;
 
       // If a new file was selected, upload it first
       if (imageFile) {
-        // For new items, create a temp ID placeholder; for edits use the real ID
         const tempId = editItem ? editItem.id : 'temp-' + Date.now();
         imageUrl = await uploadMenuImage(imageFile, tempId);
       }
@@ -146,7 +174,7 @@ export default function AdminPage() {
         image_url: imageUrl,
       };
 
-      let savedItem;
+      let savedItem: MenuItem;
       if (editItem) {
         savedItem = await updateMenuItem(editItem.id, payload);
       } else {
@@ -163,12 +191,12 @@ export default function AdminPage() {
       setEditItem(null);
       resetForm();
       await loadAll();
-    } catch (err) {
-      alert('Błąd: ' + err.message);
+    } catch (err: unknown) {
+      alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
     }
-  };
+  }
 
-  const handleEdit = (item) => {
+  function handleEdit(item: MenuItem) {
     setEditItem(item);
     setForm({
       name: item.name,
@@ -181,36 +209,43 @@ export default function AdminPage() {
     setImageFile(null);
     setImagePreview(item.image_url || null);
     setShowForm(true);
-  };
+  }
 
-  const handleDelete = async (id) => {
+  async function handleDelete(id: string) {
     if (!window.confirm('Na pewno usunąć to danie?')) return;
     try {
       await deleteMenuItem(id);
       await loadAll();
-    } catch (err) {
-      alert('Błąd: ' + err.message);
+    } catch (err: unknown) {
+      alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
     }
-  };
+  }
 
-  const resetForm = () => {
-    setForm({ name: '', description: '', price: '', category: '', is_available: true, image_url: '' });
+  function resetForm() {
+    setForm({
+      name: '',
+      description: '',
+      price: '',
+      category: '',
+      is_available: true,
+      image_url: '',
+    });
     setImageFile(null);
     setImagePreview(null);
-  };
+  }
 
-  const handleRoleChange = async (userId, newRole) => {
+  async function handleRoleChange(userId: string, newRole: string) {
     try {
       await updateUserRole(userId, newRole);
       await loadAll();
-    } catch (err) {
-      alert('Błąd: ' + err.message);
+    } catch (err: unknown) {
+      alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
     }
-  };
+  }
 
   // ─── Recipe modal ───
 
-  const openRecipeModal = async (item) => {
+  async function openRecipeModal(item: MenuItem) {
     setRecipeModal(item);
     setNewIngredientId('');
     setNewIngredientQty('');
@@ -222,44 +257,48 @@ export default function AdminPage() {
       ]);
       setRecipeIngredients(ings);
       setAllIngredients(allIngs);
-    } catch (err) {
-      alert('Błąd ładowania receptury: ' + err.message);
+    } catch (err: unknown) {
+      alert(
+        'Błąd ładowania receptury: ' +
+          (err instanceof Error ? err.message : String(err)),
+      );
     } finally {
       setRecipeLoading(false);
     }
-  };
+  }
 
-  const closeRecipeModal = () => {
+  function closeRecipeModal() {
     setRecipeModal(null);
     setRecipeIngredients([]);
     setAllIngredients([]);
-  };
+  }
 
-  const handleAddIngredient = async () => {
+  async function handleAddIngredient() {
     if (!newIngredientId || !newIngredientQty) return;
+    if (!recipeModal) return;
     try {
       const added = await addMenuItemIngredient(
         recipeModal.id,
         newIngredientId,
-        parseFloat(newIngredientQty)
+        parseFloat(newIngredientQty),
       );
       setRecipeIngredients((prev) => [...prev, added]);
       setNewIngredientId('');
       setNewIngredientQty('');
-    } catch (err) {
-      alert('Błąd: ' + err.message);
+    } catch (err: unknown) {
+      alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
     }
-  };
+  }
 
-  const handleDeleteIngredient = async (id) => {
+  async function handleDeleteIngredient(id: string) {
     if (!window.confirm('Usunąć ten składnik z receptury?')) return;
     try {
       await deleteMenuItemIngredient(id);
       setRecipeIngredients((prev) => prev.filter((ri) => ri.id !== id));
-    } catch (err) {
-      alert('Błąd: ' + err.message);
+    } catch (err: unknown) {
+      alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
     }
-  };
+  }
 
   if (loading) {
     return (
@@ -321,7 +360,9 @@ export default function AdminPage() {
               {orders.map((o) => (
                 <tr key={o.id}>
                   <td className="small">#{o.id.slice(0, 8)}</td>
-                  <td>{o.profiles?.full_name || o.profiles?.email || '—'}</td>
+                  <td>
+                    {o.profiles?.full_name || o.profiles?.email || '—'}
+                  </td>
                   <td className="small">
                     {new Date(o.created_at).toLocaleString('pl-PL')}
                   </td>
@@ -335,34 +376,49 @@ export default function AdminPage() {
                       {nextStatus[o.status] && (
                         <button
                           className="btn btn-outline-success btn-sm py-0 px-1"
-                          title={statusLabels[nextStatus[o.status]]}
-                          onClick={() => handleStatusChange(o.id, nextStatus[o.status])}
+                          title={statusLabels[nextStatus[o.status]!]}
+                          onClick={() =>
+                            handleStatusChange(o.id, nextStatus[o.status]!)
+                          }
                         >
                           →
                         </button>
                       )}
-                      {o.status !== 'cancelled' && o.status !== 'delivered' && (
-                        <button
-                          className="btn btn-outline-danger btn-sm py-0 px-1"
-                          title="Anuluj"
-                          onClick={() => handleStatusChange(o.id, 'cancelled')}
-                        >
-                          ✕
-                        </button>
-                      )}
+                      {o.status !== 'cancelled' &&
+                        o.status !== 'delivered' && (
+                          <button
+                            className="btn btn-outline-danger btn-sm py-0 px-1"
+                            title="Anuluj"
+                            onClick={() =>
+                              handleStatusChange(o.id, 'cancelled')
+                            }
+                          >
+                            ✕
+                          </button>
+                        )}
                     </div>
                   </td>
                   <td>
                     <span
                       className={`badge bg-${o.payment_status === 'paid' ? 'success' : 'danger'} cursor-pointer`}
                       style={{ cursor: 'pointer' }}
-                      onClick={() => handlePaymentToggle(o.id, o.payment_status)}
-                      title={o.payment_status === 'paid' ? 'Kliknij aby cofnąć płatność' : 'Kliknij aby oznaczyć jako opłacone'}
+                      onClick={() =>
+                        handlePaymentToggle(o.id, o.payment_status)
+                      }
+                      title={
+                        o.payment_status === 'paid'
+                          ? 'Kliknij aby cofnąć płatność'
+                          : 'Kliknij aby oznaczyć jako opłacone'
+                      }
                     >
-                      {o.payment_status === 'paid' ? 'Opłacone' : 'Nieopłacone'}
+                      {o.payment_status === 'paid'
+                        ? 'Opłacone'
+                        : 'Nieopłacone'}
                     </span>
                   </td>
-                  <td className="fw-bold">{o.total_amount.toFixed(2)} zł</td>
+                  <td className="fw-bold">
+                    {Number(o.total_amount).toFixed(2)} zł
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -395,7 +451,9 @@ export default function AdminPage() {
                       <input
                         className="form-control"
                         value={form.name}
-                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, name: e.target.value })
+                        }
                         required
                       />
                     </div>
@@ -404,7 +462,9 @@ export default function AdminPage() {
                       <input
                         className="form-control"
                         value={form.category}
-                        onChange={(e) => setForm({ ...form, category: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, category: e.target.value })
+                        }
                         placeholder="np. Obiady, Zupy, Napoje"
                         required
                       />
@@ -417,7 +477,9 @@ export default function AdminPage() {
                         min="0"
                         className="form-control"
                         value={form.price}
-                        onChange={(e) => setForm({ ...form, price: e.target.value })}
+                        onChange={(e) =>
+                          setForm({ ...form, price: e.target.value })
+                        }
                         required
                       />
                     </div>
@@ -429,10 +491,16 @@ export default function AdminPage() {
                           id="isAvailable"
                           checked={form.is_available}
                           onChange={(e) =>
-                            setForm({ ...form, is_available: e.target.checked })
+                            setForm({
+                              ...form,
+                              is_available: e.target.checked,
+                            })
                           }
                         />
-                        <label className="form-check-label" htmlFor="isAvailable">
+                        <label
+                          className="form-check-label"
+                          htmlFor="isAvailable"
+                        >
                           Dostępne
                         </label>
                       </div>
@@ -441,7 +509,7 @@ export default function AdminPage() {
                       <label className="form-label">Opis</label>
                       <textarea
                         className="form-control"
-                        rows="2"
+                        rows={2}
                         value={form.description}
                         onChange={(e) =>
                           setForm({ ...form, description: e.target.value })
@@ -454,8 +522,8 @@ export default function AdminPage() {
                         type="file"
                         className="form-control"
                         accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files[0];
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          const file = e.target.files?.[0];
                           if (file) {
                             setImageFile(file);
                             setImagePreview(URL.createObjectURL(file));
@@ -588,7 +656,9 @@ export default function AdminPage() {
                       className="form-select form-select-sm"
                       style={{ width: 140 }}
                       value={p.role}
-                      onChange={(e) => handleRoleChange(p.id, e.target.value)}
+                      onChange={(e) =>
+                        handleRoleChange(p.id, e.target.value)
+                      }
                     >
                       <option value="user">user</option>
                       <option value="kitchen">kitchen</option>
@@ -607,7 +677,7 @@ export default function AdminPage() {
       {recipeModal && (
         <div
           className="modal d-block"
-          tabIndex="-1"
+          tabIndex={-1}
           style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
           onClick={closeRecipeModal}
         >
@@ -617,7 +687,9 @@ export default function AdminPage() {
           >
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Receptura: {recipeModal.name}</h5>
+                <h5 className="modal-title">
+                  Receptura: {recipeModal.name}
+                </h5>
                 <button
                   type="button"
                   className="btn-close"
@@ -633,7 +705,9 @@ export default function AdminPage() {
                   <>
                     {/* Existing ingredients */}
                     {recipeIngredients.length === 0 ? (
-                      <p className="text-muted">Brak składników w recepturze.</p>
+                      <p className="text-muted">
+                        Brak składników w recepturze.
+                      </p>
                     ) : (
                       <table className="table table-sm mb-4">
                         <thead>
@@ -641,7 +715,7 @@ export default function AdminPage() {
                             <th>Składnik</th>
                             <th>Ilość</th>
                             <th>Jednostka</th>
-                            <th></th>
+                            <th />
                           </tr>
                         </thead>
                         <tbody>
@@ -653,7 +727,9 @@ export default function AdminPage() {
                               <td>
                                 <button
                                   className="btn btn-outline-danger btn-sm py-0"
-                                  onClick={() => handleDeleteIngredient(ri.id)}
+                                  onClick={() =>
+                                    handleDeleteIngredient(ri.id)
+                                  }
                                 >
                                   ✕
                                 </button>
@@ -671,7 +747,9 @@ export default function AdminPage() {
                         <select
                           className="form-select form-select-sm"
                           value={newIngredientId}
-                          onChange={(e) => setNewIngredientId(e.target.value)}
+                          onChange={(e) =>
+                            setNewIngredientId(e.target.value)
+                          }
                         >
                           <option value="">— Wybierz składnik —</option>
                           {allIngredients.map((ing) => (
@@ -689,13 +767,17 @@ export default function AdminPage() {
                           className="form-control form-control-sm"
                           placeholder="Ilość"
                           value={newIngredientQty}
-                          onChange={(e) => setNewIngredientQty(e.target.value)}
+                          onChange={(e) =>
+                            setNewIngredientQty(e.target.value)
+                          }
                         />
                       </div>
                       <div className="col-md-3">
                         <button
                           className="btn btn-success btn-sm w-100"
-                          disabled={!newIngredientId || !newIngredientQty}
+                          disabled={
+                            !newIngredientId || !newIngredientQty
+                          }
                           onClick={handleAddIngredient}
                         >
                           Dodaj

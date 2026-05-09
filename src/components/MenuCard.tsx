@@ -1,4 +1,4 @@
-import { useCart } from '../hooks/useCart.jsx';
+import { useCart } from '../hooks/useCart';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import type { MenuItem } from '../lib/database.types';

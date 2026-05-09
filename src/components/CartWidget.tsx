@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useCart } from '../hooks/useCart.jsx';
+import { useCart } from '../hooks/useCart';
 
 export default function CartWidget() {
   const { cart } = useCart();

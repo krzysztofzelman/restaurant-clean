@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getMyOrders } from '../services/api';
+import type { OrderWithRelations, OrderStatus } from '../lib/database.types';
 
-const statusLabels = {
+const statusLabels: Record<OrderStatus, string> = {
   pending: 'Oczekujące',
   confirmed: 'Potwierdzone',
   preparing: 'W przygotowaniu',
@@ -13,7 +14,7 @@ const statusLabels = {
   cancelled: 'Anulowane',
 };
 
-const statusColors = {
+const statusColors: Record<OrderStatus, string> = {
   pending: 'warning',
   confirmed: 'info',
   preparing: 'primary',
@@ -26,25 +27,26 @@ const statusColors = {
 export default function OrdersPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState<OrderWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (user) loadOrders();
+    if (!user) return;
+    getMyOrders(user.id)
+      .then((data) => {
+        setOrders(data);
+      })
+      .catch((err: unknown) => {
+        setError(
+          'Nie udało się załadować zamówień: ' +
+            (err instanceof Error ? err.message : String(err)),
+        );
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [user]);
-
-  async function loadOrders() {
-    try {
-      setLoading(true);
-      const data = await getMyOrders(user.id);
-      setOrders(data);
-    } catch (err) {
-      setError('Nie udało się załadować zamówień: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   if (loading) {
     return (
@@ -87,9 +89,7 @@ export default function OrdersPage() {
                       <p className="mb-1">
                         <strong>Płatność:</strong>{' '}
                         <span
-                          className={`badge bg-${
-                            order.payment_status === 'paid' ? 'success' : 'danger'
-                          }`}
+                          className={`badge bg-${order.payment_status === 'paid' ? 'success' : 'danger'}`}
                         >
                           {order.payment_status === 'paid'
                             ? 'Opłacone'
@@ -112,8 +112,9 @@ export default function OrdersPage() {
                       <ul className="list-unstyled mb-0">
                         {order.order_items?.map((item) => (
                           <li key={item.id} className="small">
-                            {item.quantity}× {item.menu_item?.name || 'Danie'}{' '}
-                            – {item.subtotal.toFixed(2)} zł
+                            {item.quantity}×{' '}
+                            {item.menu_item?.name || 'Danie'} –{' '}
+                            {Number(item.subtotal).toFixed(2)} zł
                           </li>
                         ))}
                       </ul>
@@ -122,16 +123,18 @@ export default function OrdersPage() {
                 </div>
                 <div className="card-footer d-flex justify-content-between align-items-center">
                   <div>
-                    {order.payment_status !== 'paid' && (order.status === 'pending' || order.status === 'confirmed') && (
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => navigate('/cart')}
-                      >
-                        Zapłać teraz
-                      </button>
-                    )}
+                    {order.payment_status !== 'paid' &&
+                      (order.status === 'pending' ||
+                        order.status === 'confirmed') && (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => navigate('/cart')}
+                        >
+                          Zapłać teraz
+                        </button>
+                      )}
                   </div>
-                  <strong>{order.total_amount.toFixed(2)} zł</strong>
+                  <strong>{Number(order.total_amount).toFixed(2)} zł</strong>
                 </div>
               </div>
             </div>
