@@ -237,7 +237,7 @@ CREATE POLICY "Staff can update orders"
     )
   );
 
--- Courier: widzi zamówienia confirmed (nieprzypisane) lub in_transit (swoje)
+-- Courier: widzi zamówienia ready (nieprzypisane) lub in_transit (swoje)
 CREATE POLICY "Couriers can view delivery orders"
   ON public.orders FOR SELECT
   USING (
@@ -246,7 +246,7 @@ CREATE POLICY "Couriers can view delivery orders"
       WHERE id = auth.uid() AND role = 'courier'
     )
     AND (
-      (status = 'confirmed' AND courier_id IS NULL)
+      (status = 'ready' AND courier_id IS NULL)
       OR (status = 'in_transit' AND courier_id = auth.uid())
     )
   );

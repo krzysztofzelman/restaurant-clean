@@ -63,7 +63,7 @@ export default function CourierPage() {
   };
 
   const availableOrders = orders.filter(
-    (o) => o.status === 'confirmed' && !o.courier_id
+    (o) => o.status === 'ready' && !o.courier_id
   );
 
   const myDeliveries = orders.filter(
