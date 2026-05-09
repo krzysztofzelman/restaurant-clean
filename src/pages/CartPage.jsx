@@ -62,6 +62,10 @@ export default function CartPage() {
     setTimeout(() => navigate('/orders'), 2000);
   };
 
+  const handlePaymentError = (errorMessage) => {
+    setError(errorMessage);
+  };
+
   const handleCancelOrder = async () => {
     try {
       const { updateOrderStatus } = await import('../services/api');

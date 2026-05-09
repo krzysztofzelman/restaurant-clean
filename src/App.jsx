@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './hooks/useCart';
+import ErrorBoundary from './components/ErrorBoundary';
 import Navbar from './components/Navbar';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -120,14 +121,16 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <CartProvider>
-          <Navbar />
-          <main className="min-vh-100 bg-light">
-            <AppRoutes />
-          </main>
-        </CartProvider>
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <CartProvider>
+            <Navbar />
+            <main className="min-vh-100 bg-light">
+              <AppRoutes />
+            </main>
+          </CartProvider>
+        </AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
