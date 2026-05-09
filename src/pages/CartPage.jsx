@@ -30,7 +30,7 @@ export default function CartPage() {
 
   const handlePlaceOrder = async () => {
     if (!user) {
-      navigate('/login');
+      navigate('/login', { state: { from: '/cart' } });
       return;
     }
     if (cart.length === 0) return;

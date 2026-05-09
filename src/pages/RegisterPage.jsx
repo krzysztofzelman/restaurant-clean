@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function RegisterPage() {
@@ -11,6 +11,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const { signUp } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,7 +23,9 @@ export default function RegisterPage() {
       setSuccess(
         'Konto utworzone! Sprawdź skrzynkę email, aby potwierdzić rejestrację (jeśli wymagane). Za chwilę zostaniesz przekierowany.'
       );
-      setTimeout(() => navigate('/login'), 4000);
+      // Zachowaj ścieżkę powrotu (np. z koszyka)
+      const fromState = location.state?.from ? { state: { from: location.state.from } } : {};
+      setTimeout(() => navigate('/login', fromState), 4000);
     } catch (err) {
       setError(err.message || 'Błąd rejestracji');
     } finally {
@@ -72,7 +75,10 @@ export default function RegisterPage() {
         </button>
       </form>
       <p className="text-center mt-3">
-        Masz już konto? <Link to="/login">Zaloguj się</Link>
+        Masz już konto?{' '}
+        <Link to="/login" state={location.state?.from ? { from: location.state.from } : undefined}>
+          Zaloguj się
+        </Link>
       </p>
     </div>
   );

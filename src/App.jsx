@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './hooks/useCart';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -39,6 +39,7 @@ function ProtectedRoute({ children, allowedRoles }) {
 
 function PublicRoute({ children }) {
   const { user, profile, loading } = useAuth();
+  const location = useLocation();
   if (loading) {
     return (
       <div className="container py-5 text-center">
@@ -47,7 +48,10 @@ function PublicRoute({ children }) {
     );
   }
   if (user) {
-    // Przekieruj w zależności od roli
+    // Jeśli przyszedł z innej strony (np. koszyka) – wróć tam
+    const from = location.state?.from;
+    if (from) return <Navigate to={from} replace />;
+    // W przeciwnym razie – przekieruj wg roli
     const roleRedirect = {
       admin: '/admin',
       kitchen: '/kitchen',

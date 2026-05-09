@@ -43,7 +43,9 @@ export default function LoginPage() {
         kitchen: '/kitchen',
         courier: '/courier',
       };
-      navigate(roleRedirect[p?.role] || '/menu');
+      // Jeśli przyszedł z innej strony (np. koszyka) – wróć tam
+      const from = location.state?.from || roleRedirect[p?.role] || '/menu';
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.message || 'Błąd logowania');
     } finally {
