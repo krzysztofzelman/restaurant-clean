@@ -95,6 +95,7 @@ export default function AdminPage() {
   const [newIngredientId, setNewIngredientId] = useState('');
   const [newIngredientQty, setNewIngredientQty] = useState('');
   const [recipeLoading, setRecipeLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadAll();
@@ -136,6 +137,10 @@ export default function AdminPage() {
     currentStatus: string,
   ) {
     if (!window.confirm('Czy na pewno chcesz zmienić status płatności?')) return;
+    if (currentStatus === 'refunded') {
+      alert('Nie można zmienić statusu płatności dla zwróconego zamówienia.');
+      return;
+    }
     const newStatus = currentStatus === 'paid' ? 'unpaid' : 'paid';
     try {
       await updatePaymentStatus(orderId, newStatus);
@@ -156,33 +161,33 @@ export default function AdminPage() {
 
   async function handleSaveMenuItem(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
+    const parsedPrice = parseFloat(form.price);
+    if (isNaN(parsedPrice) || parsedPrice <= 0) {
+      alert('Cena musi być liczbą większą od 0.');
+      return;
+    }
+    setSubmitting(true);
     try {
-      let imageUrl: string | null = form.image_url || null;
-
-      // If a new file was selected, upload it first
-      if (imageFile) {
-        const tempId = editItem ? editItem.id : 'temp-' + Date.now();
-        imageUrl = await uploadMenuImage(imageFile, tempId);
-      }
+      let savedItem: MenuItem;
 
       const payload = {
         name: form.name,
         description: form.description,
-        price: parseFloat(form.price),
+        price: parsedPrice,
         category: form.category,
         is_available: form.is_available,
-        image_url: imageUrl,
+        image_url: form.image_url || null,
       };
 
-      let savedItem: MenuItem;
       if (editItem) {
         savedItem = await updateMenuItem(editItem.id, payload);
       } else {
         savedItem = await addMenuItem(payload);
       }
 
-      // If this was a new item uploaded with a temp ID, re-upload under the real ID
-      if (imageFile && !editItem) {
+      // Upload image after saving, so we have the real ID
+      if (imageFile) {
         const finalUrl = await uploadMenuImage(imageFile, savedItem.id);
         await updateMenuItem(savedItem.id, { image_url: finalUrl });
       }
@@ -193,6 +198,8 @@ export default function AdminPage() {
       await loadAll();
     } catch (err: unknown) {
       alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -276,6 +283,10 @@ export default function AdminPage() {
   async function handleAddIngredient() {
     if (!newIngredientId || !newIngredientQty) return;
     if (!recipeModal) return;
+    if (recipeIngredients.some((ri) => ri.ingredient_id === newIngredientId)) {
+      alert('Ten składnik jest już dodany do receptury.');
+      return;
+    }
     try {
       const added = await addMenuItemIngredient(
         recipeModal.id,
@@ -553,8 +564,8 @@ export default function AdminPage() {
                       )}
                     </div>
                     <div className="col-12">
-                      <button type="submit" className="btn btn-success">
-                        {editItem ? 'Zapisz zmiany' : 'Dodaj'}
+                      <button type="submit" className="btn btn-success" disabled={submitting}>
+                        {submitting ? 'Zapisywanie...' : (editItem ? 'Zapisz zmiany' : 'Dodaj')}
                       </button>
                     </div>
                   </div>

@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { getAllOrders, updateOrderStatus } from '../services/api';
 import useKitchenNotifications from '../hooks/useKitchenNotifications';
+import type { OrderWithRelations, OrderStatus } from '../lib/database.types';
 
-const statusLabels = {
+const statusLabels: Record<OrderStatus, string> = {
   pending: 'Oczekujące',
   confirmed: 'Potwierdzone',
   preparing: 'W przygotowaniu',
@@ -13,7 +13,7 @@ const statusLabels = {
   cancelled: 'Anulowane',
 };
 
-const statusColors = {
+const statusColors: Record<OrderStatus, string> = {
   pending: 'warning',
   confirmed: 'info',
   preparing: 'primary',
@@ -23,15 +23,14 @@ const statusColors = {
   cancelled: 'danger',
 };
 
-const nextStatus = {
+const nextStatus: Partial<Record<OrderStatus, OrderStatus>> = {
   pending: 'confirmed',
   confirmed: 'preparing',
   preparing: 'ready',
 };
 
 export default function KitchenPage() {
-  const { user, profile } = useAuth();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState<OrderWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('active');
@@ -51,8 +50,11 @@ export default function KitchenPage() {
     try {
       const data = await getAllOrders();
       setOrders(data);
-    } catch (err) {
-      setError('Błąd ładowania zamówień: ' + err.message);
+    } catch (err: unknown) {
+      setError(
+        'Błąd ładowania zamówień: ' +
+          (err instanceof Error ? err.message : String(err)),
+      );
     } finally {
       setLoading(false);
     }
@@ -60,22 +62,29 @@ export default function KitchenPage() {
 
   // Initial load + auto-refresh every 10s
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadOrders();
     const interval = setInterval(loadOrders, 10000);
     return () => clearInterval(interval);
   }, [loadOrders]);
 
-  const handleStatusChange = async (orderId, newStatus) => {
+  const handleStatusChange = async (
+    orderId: string,
+    newStatus: OrderStatus,
+  ) => {
     try {
       await updateOrderStatus(orderId, newStatus);
       await loadOrders();
-    } catch (err) {
-      alert('Błąd: ' + err.message);
+    } catch (err: unknown) {
+      alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
     }
   };
 
+  const activeStatuses: OrderStatus[] = ['delivered', 'cancelled'];
+
   const filteredOrders = orders.filter((o) => {
-    if (filter === 'active') return !['delivered', 'cancelled'].includes(o.status);
+    if (filter === 'active')
+      return !activeStatuses.includes(o.status);
     if (filter === 'delivered') return o.status === 'delivered';
     if (filter === 'cancelled') return o.status === 'cancelled';
     return true;
@@ -105,7 +114,9 @@ export default function KitchenPage() {
             className={`nav-link ${filter === 'active' ? 'active' : ''}`}
             onClick={() => setFilter('active')}
           >
-            Aktywne ({orders.filter((o) => !['delivered', 'cancelled'].includes(o.status)).length})
+            Aktywne (
+            {orders.filter((o) => !activeStatuses.includes(o.status)).length}
+            )
           </button>
         </li>
         <li className="nav-item">
@@ -146,7 +157,9 @@ export default function KitchenPage() {
                 <div className="card-body">
                   <p className="mb-1 small">
                     <strong>Klient:</strong>{' '}
-                    {order.profiles?.full_name || order.profiles?.email || 'Nieznany'}
+                    {order.profiles?.full_name ||
+                      order.profiles?.email ||
+                      'Nieznany'}
                   </p>
                   <p className="mb-1 small">
                     <strong>Data:</strong>{' '}
@@ -155,11 +168,11 @@ export default function KitchenPage() {
                   <p className="mb-1 small">
                     <strong>Płatność:</strong>{' '}
                     <span
-                      className={`badge bg-${
-                        order.payment_status === 'paid' ? 'success' : 'danger'
-                      }`}
+                      className={`badge bg-${order.payment_status === 'paid' ? 'success' : 'danger'}`}
                     >
-                      {order.payment_status === 'paid' ? 'Opłacone' : 'Nieopłacone'}
+                      {order.payment_status === 'paid'
+                        ? 'Opłacone'
+                        : 'Nieopłacone'}
                     </span>
                   </p>
                   {order.delivery_address && (
@@ -177,37 +190,49 @@ export default function KitchenPage() {
                   <ul className="list-unstyled small mb-0">
                     {order.order_items?.map((item) => (
                       <li key={item.id}>
-                        {item.quantity}× {item.menu_item?.name || 'Danie'} –{' '}
-                        {item.subtotal.toFixed(2)} zł
+                        {item.quantity}×{' '}
+                        {item.menu_item?.name || 'Danie'} –{' '}
+                        {Number(item.subtotal).toFixed(2)} zł
                       </li>
                     ))}
                   </ul>
                 </div>
                 <div className="card-footer">
                   <div className="d-flex justify-content-between align-items-center">
-                    <strong>{order.total_amount.toFixed(2)} zł</strong>
+                    <strong>
+                      {Number(order.total_amount).toFixed(2)} zł
+                    </strong>
                     <div className="d-flex gap-1 align-items-center">
                       {order.payment_status !== 'paid' && (
-                        <span className="badge bg-warning text-dark me-1">Oczekuje na płatność</span>
+                        <span className="badge bg-warning text-dark me-1">
+                          Oczekuje na płatność
+                        </span>
                       )}
-                      {order.payment_status === 'paid' && nextStatus[order.status] && (
-                        <button
-                          className="btn btn-success btn-sm"
-                          onClick={() =>
-                            handleStatusChange(order.id, nextStatus[order.status])
-                          }
-                        >
-                          {statusLabels[nextStatus[order.status]]}
-                        </button>
-                      )}
-                      {order.status !== 'cancelled' && order.status !== 'delivered' && (
-                        <button
-                          className="btn btn-outline-danger btn-sm"
-                          onClick={() => handleStatusChange(order.id, 'cancelled')}
-                        >
-                          Anuluj
-                        </button>
-                      )}
+                      {order.payment_status === 'paid' &&
+                        nextStatus[order.status] && (
+                          <button
+                            className="btn btn-success btn-sm"
+                            onClick={() =>
+                              handleStatusChange(
+                                order.id,
+                                nextStatus[order.status]!,
+                              )
+                            }
+                          >
+                            {statusLabels[nextStatus[order.status]!]}
+                          </button>
+                        )}
+                      {order.status !== 'cancelled' &&
+                        order.status !== 'delivered' && (
+                          <button
+                            className="btn btn-outline-danger btn-sm"
+                            onClick={() =>
+                              handleStatusChange(order.id, 'cancelled')
+                            }
+                          >
+                            Anuluj
+                          </button>
+                        )}
                     </div>
                   </div>
                 </div>

@@ -1,6 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+
+interface LocationState {
+  from?: string;
+}
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -12,8 +16,16 @@ export default function RegisterPage() {
   const { signUp } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleSubmit = async (e) => {
+  useEffect(() => {
+    return () => {
+      if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    };
+  }, []);
+  const state = location.state as LocationState | null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -21,13 +33,16 @@ export default function RegisterPage() {
     try {
       await signUp(email, password, fullName);
       setSuccess(
-        'Konto utworzone! Sprawdź skrzynkę email, aby potwierdzić rejestrację (jeśli wymagane). Za chwilę zostaniesz przekierowany.'
+        'Konto utworzone! Sprawdź skrzynkę email, aby potwierdzić rejestrację (jeśli wymagane). Za chwilę zostaniesz przekierowany.',
       );
-      // Zachowaj ścieżkę powrotu (np. z koszyka)
-      const fromState = location.state?.from ? { state: { from: location.state.from } } : {};
-      setTimeout(() => navigate('/login', fromState), 4000);
-    } catch (err) {
-      setError(err.message || 'Błąd rejestracji');
+      const fromState = state?.from
+        ? { state: { from: state.from } as LocationState }
+        : {};
+      redirectTimer.current = setTimeout(() => navigate('/login', fromState), 4000);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : 'Błąd rejestracji',
+      );
     } finally {
       setLoading(false);
     }
@@ -76,7 +91,14 @@ export default function RegisterPage() {
       </form>
       <p className="text-center mt-3">
         Masz już konto?{' '}
-        <Link to="/login" state={location.state?.from ? { from: location.state.from } : undefined}>
+        <Link
+          to="/login"
+          state={
+            (location.state as LocationState)?.from
+              ? { from: (location.state as LocationState).from }
+              : undefined
+          }
+        >
           Zaloguj się
         </Link>
       </p>

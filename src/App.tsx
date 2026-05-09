@@ -37,8 +37,17 @@ function ProtectedRoute({
 
   if (!user) return <Navigate to="/login" replace />;
 
-  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-    return <Navigate to="/menu" replace />;
+  if (allowedRoles) {
+    if (!profile) {
+      return (
+        <div className="container py-5 text-center">
+          <div className="spinner-border" role="status" />
+        </div>
+      );
+    }
+    if (!allowedRoles.includes(profile.role)) {
+      return <Navigate to="/menu" replace />;
+    }
   }
 
   return <>{children}</>;

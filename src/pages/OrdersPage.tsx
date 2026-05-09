@@ -25,14 +25,19 @@ const statusColors: Record<OrderStatus, string> = {
 };
 
 export default function OrdersPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState<OrderWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!user) return;
+    if (authLoading) return;
+    if (!user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLoading(false);
+      return;
+    }
     getMyOrders(user.id)
       .then((data) => {
         setOrders(data);
@@ -46,7 +51,7 @@ export default function OrdersPage() {
       .finally(() => {
         setLoading(false);
       });
-  }, [user]);
+  }, [user, authLoading]);
 
   if (loading) {
     return (

@@ -248,6 +248,7 @@ CREATE POLICY "Couriers can view delivery orders"
     AND (
       (status = 'ready' AND courier_id IS NULL)
       OR (status = 'in_transit' AND courier_id = auth.uid())
+      OR (status = 'delivered' AND courier_id = auth.uid())
     )
   );
 
@@ -295,8 +296,8 @@ CREATE POLICY "Couriers can view order items"
       SELECT 1 FROM public.orders
       WHERE orders.id = order_items.order_id
         AND (
-          orders.status = 'confirmed'
-          OR (orders.status = 'in_transit' AND orders.courier_id = auth.uid())
+          orders.status = 'ready'
+          OR orders.status = 'in_transit'
         )
     )
     AND EXISTS (

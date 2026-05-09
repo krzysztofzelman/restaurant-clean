@@ -1,28 +1,38 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getCourierOrders, updateDeliveryStatus, getCourierHistory } from '../services/api';
+import type { OrderWithRelations, OrderStatus } from '../lib/database.types';
 
-const statusLabels = {
+const statusLabels: Record<OrderStatus, string> = {
+  pending: 'Oczekujące',
   confirmed: 'Potwierdzone',
+  preparing: 'W przygotowaniu',
+  ready: 'Gotowe',
   in_transit: 'W drodze',
   delivered: 'Dostarczone',
+  cancelled: 'Anulowane',
 };
 
-const statusColors = {
-  confirmed: 'success',
+const statusColors: Record<OrderStatus, string> = {
+  pending: 'warning',
+  confirmed: 'info',
+  preparing: 'primary',
+  ready: 'success',
   in_transit: 'primary',
   delivered: 'secondary',
+  cancelled: 'danger',
 };
 
 export default function CourierPage() {
   const { user } = useAuth();
-  const [orders, setOrders] = useState([]);
-  const [history, setHistory] = useState([]);
+  const [orders, setOrders] = useState<OrderWithRelations[]>([]);
+  const [history, setHistory] = useState<OrderWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('available');
 
   const loadOrders = useCallback(async () => {
+    if (!user) return;
     try {
       const [data, historyData] = await Promise.all([
         getCourierOrders(),
@@ -30,44 +40,49 @@ export default function CourierPage() {
       ]);
       setOrders(data);
       setHistory(historyData);
-    } catch (err) {
-      setError('Błąd ładowania zamówień: ' + err.message);
+    } catch (err: unknown) {
+      setError(
+        'Błąd ładowania zamówień: ' +
+          (err instanceof Error ? err.message : String(err)),
+      );
     } finally {
       setLoading(false);
     }
-  }, [user.id]);
+  }, [user]);
 
   // Initial load + auto-refresh every 15s
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadOrders();
     const interval = setInterval(loadOrders, 15000);
     return () => clearInterval(interval);
   }, [loadOrders]);
 
-  const handleAssign = async (orderId) => {
+  const handleAssign = async (orderId: string) => {
+    if (!user) return;
     try {
       await updateDeliveryStatus(orderId, 'in_transit', user.id);
       await loadOrders();
-    } catch (err) {
-      alert('Błąd: ' + err.message);
+    } catch (err: unknown) {
+      alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
     }
   };
 
-  const handleDelivered = async (orderId) => {
+  const handleDelivered = async (orderId: string) => {
     try {
       await updateDeliveryStatus(orderId, 'delivered');
       await loadOrders();
-    } catch (err) {
-      alert('Błąd: ' + err.message);
+    } catch (err: unknown) {
+      alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
     }
   };
 
   const availableOrders = orders.filter(
-    (o) => o.status === 'ready' && !o.courier_id
+    (o) => o.status === 'ready' && !o.courier_id,
   );
 
   const myDeliveries = orders.filter(
-    (o) => o.courier_id === user.id && o.status === 'in_transit'
+    (o) => o.courier_id === user?.id && o.status === 'in_transit',
   );
 
   const completedDeliveries = history;
@@ -121,7 +136,9 @@ export default function CourierPage() {
       {filter === 'available' && (
         <>
           {availableOrders.length === 0 ? (
-            <p className="text-muted">Brak zamówień gotowych do odbioru.</p>
+            <p className="text-muted">
+              Brak zamówień gotowych do odbioru.
+            </p>
           ) : (
             <div className="row g-3">
               {availableOrders.map((order) => (
@@ -131,12 +148,16 @@ export default function CourierPage() {
                       <span className="fw-bold small">
                         #{order.id.slice(0, 8)}
                       </span>
-                      <span className="badge bg-light text-dark">Gotowe do odbioru</span>
+                      <span className="badge bg-light text-dark">
+                        Gotowe do odbioru
+                      </span>
                     </div>
                     <div className="card-body">
                       <p className="mb-1 small">
                         <strong>Klient:</strong>{' '}
-                        {order.profiles?.full_name || order.profiles?.email || 'Nieznany'}
+                        {order.profiles?.full_name ||
+                          order.profiles?.email ||
+                          'Nieznany'}
                       </p>
                       {order.delivery_address && (
                         <p className="mb-1 small">
@@ -153,15 +174,18 @@ export default function CourierPage() {
                       <ul className="list-unstyled small mb-0">
                         {order.order_items?.map((item) => (
                           <li key={item.id}>
-                            {item.quantity}× {item.menu_item?.name || 'Danie'} –{' '}
-                            {item.subtotal.toFixed(2)} zł
+                            {item.quantity}×{' '}
+                            {item.menu_item?.name || 'Danie'} –{' '}
+                            {Number(item.subtotal).toFixed(2)} zł
                           </li>
                         ))}
                       </ul>
                     </div>
                     <div className="card-footer">
                       <div className="d-flex justify-content-between align-items-center">
-                        <strong>{order.total_amount.toFixed(2)} zł</strong>
+                        <strong>
+                          {Number(order.total_amount).toFixed(2)} zł
+                        </strong>
                         <button
                           className="btn btn-success btn-sm"
                           onClick={() => handleAssign(order.id)}
@@ -201,7 +225,9 @@ export default function CourierPage() {
                     <div className="card-body">
                       <p className="mb-1 small">
                         <strong>Klient:</strong>{' '}
-                        {order.profiles?.full_name || order.profiles?.email || 'Nieznany'}
+                        {order.profiles?.full_name ||
+                          order.profiles?.email ||
+                          'Nieznany'}
                       </p>
                       {order.delivery_address && (
                         <p className="mb-1 small">
@@ -218,15 +244,18 @@ export default function CourierPage() {
                       <ul className="list-unstyled small mb-0">
                         {order.order_items?.map((item) => (
                           <li key={item.id}>
-                            {item.quantity}× {item.menu_item?.name || 'Danie'} –{' '}
-                            {item.subtotal.toFixed(2)} zł
+                            {item.quantity}×{' '}
+                            {item.menu_item?.name || 'Danie'} –{' '}
+                            {Number(item.subtotal).toFixed(2)} zł
                           </li>
                         ))}
                       </ul>
                     </div>
                     <div className="card-footer">
                       <div className="d-flex justify-content-between align-items-center">
-                        <strong>{order.total_amount.toFixed(2)} zł</strong>
+                        <strong>
+                          {Number(order.total_amount).toFixed(2)} zł
+                        </strong>
                         <button
                           className="btn btn-success btn-sm"
                           onClick={() => handleDelivered(order.id)}
@@ -262,7 +291,9 @@ export default function CourierPage() {
                     <div className="card-body">
                       <p className="mb-1 small">
                         <strong>Klient:</strong>{' '}
-                        {order.profiles?.full_name || order.profiles?.email || 'Nieznany'}
+                        {order.profiles?.full_name ||
+                          order.profiles?.email ||
+                          'Nieznany'}
                       </p>
                       {order.delivery_address && (
                         <p className="mb-1 small">
@@ -274,14 +305,17 @@ export default function CourierPage() {
                       <ul className="list-unstyled small mb-0">
                         {order.order_items?.map((item) => (
                           <li key={item.id}>
-                            {item.quantity}× {item.menu_item?.name || 'Danie'} –{' '}
-                            {item.subtotal.toFixed(2)} zł
+                            {item.quantity}×{' '}
+                            {item.menu_item?.name || 'Danie'} –{' '}
+                            {Number(item.subtotal).toFixed(2)} zł
                           </li>
                         ))}
                       </ul>
                     </div>
                     <div className="card-footer">
-                      <strong>{order.total_amount.toFixed(2)} zł</strong>
+                      <strong>
+                        {Number(order.total_amount).toFixed(2)} zł
+                      </strong>
                     </div>
                   </div>
                 </div>

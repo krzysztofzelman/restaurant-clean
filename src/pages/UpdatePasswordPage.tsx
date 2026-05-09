@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
@@ -10,23 +10,24 @@ export default function UpdatePasswordPage() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setReady(true);
-      }
-    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (event) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setReady(true);
+        }
+      },
+    );
 
-    // Also check if we already have a session with PASSWORD_RECOVERY
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setReady(true);
-      }
-    });
+    return () => {
+      listener?.subscription.unsubscribe();
+      if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    };
   }, []);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -52,8 +53,10 @@ export default function UpdatePasswordPage() {
     if (updateError) {
       setError(updateError.message);
     } else {
-      setSuccess('Hasło zostało zmienione. Za chwilę nastąpi przekierowanie...');
-      setTimeout(() => {
+      setSuccess(
+        'Hasło zostało zmienione. Za chwilę nastąpi przekierowanie...',
+      );
+      redirectTimer.current = setTimeout(() => {
         navigate('/login', { state: { passwordReset: true } });
       }, 2000);
     }
@@ -61,22 +64,38 @@ export default function UpdatePasswordPage() {
 
   if (!ready) {
     return (
-      <div className="container d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
+      <div
+        className="container d-flex justify-content-center align-items-center"
+        style={{ minHeight: '60vh' }}
+      >
         <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status">
+          <div
+            className="spinner-border text-primary mb-3"
+            role="status"
+          >
             <span className="visually-hidden">Ładowanie...</span>
           </div>
-          <p className="text-muted">Weryfikacja linku resetującego...</p>
+          <p className="text-muted">
+            Weryfikacja linku resetującego...
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
-      <div className="card shadow-sm" style={{ maxWidth: 440, width: '100%' }}>
+    <div
+      className="container d-flex justify-content-center align-items-center"
+      style={{ minHeight: '60vh' }}
+    >
+      <div
+        className="card shadow-sm"
+        style={{ maxWidth: 440, width: '100%' }}
+      >
         <div className="card-body p-4">
-          <h2 className="card-title text-center mb-4">Ustaw nowe hasło</h2>
+          <h2 className="card-title text-center mb-4">
+            Ustaw nowe hasło
+          </h2>
 
           {error && (
             <div className="alert alert-danger" role="alert">
@@ -92,7 +111,9 @@ export default function UpdatePasswordPage() {
 
           <form onSubmit={handleSubmit}>
             <div className="mb-3">
-              <label htmlFor="password" className="form-label">Nowe hasło</label>
+              <label htmlFor="password" className="form-label">
+                Nowe hasło
+              </label>
               <input
                 type="password"
                 className="form-control"
@@ -106,14 +127,21 @@ export default function UpdatePasswordPage() {
             </div>
 
             <div className="mb-3">
-              <label htmlFor="confirmPassword" className="form-label">Potwierdź nowe hasło</label>
+              <label
+                htmlFor="confirmPassword"
+                className="form-label"
+              >
+                Potwierdź nowe hasło
+              </label>
               <input
                 type="password"
                 className="form-control"
                 id="confirmPassword"
                 placeholder="Wpisz ponownie hasło"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) =>
+                  setConfirmPassword(e.target.value)
+                }
                 required
                 minLength={6}
               />

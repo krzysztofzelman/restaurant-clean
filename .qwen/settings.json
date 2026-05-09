@@ -17,7 +17,11 @@
       "Bash(powershell *)",
       "Bash(node *)",
       "Bash(ren *)",
-      "Bash(findstr *)"
+      "Bash(findstr *)",
+      "Bash(git show *)",
+      "Bash(copy *)",
+      "Bash(echo.)",
+      "Bash(echo *)"
     ]
   },
   "$version": 4

@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCart } from '../hooks/useCart.jsx';
+import { useCart } from '../hooks/useCart';
 import { useAuth } from '../context/AuthContext';
 import { createOrder } from '../services/api';
 import StripePayment from '../components/StripePayment';
+import type { Order } from '../lib/database.types';
 
 const SESSION_KEY = 'pendingOrderId';
 
 export default function CartPage() {
-  const { cart, updateQuantity, removeFromCart, clearCart, totalAmount } = useCart();
+  const { cart, updateQuantity, removeFromCart, clearCart, totalAmount } =
+    useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [deliveryAddress, setDeliveryAddress] = useState('');
@@ -16,10 +18,12 @@ export default function CartPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [placedOrder, setPlacedOrder] = useState(() => {
-    const saved = sessionStorage.getItem(SESSION_KEY);
-    return saved ? { id: saved } : null;
-  });
+  const [placedOrder, setPlacedOrder] = useState<{ id: string } | null>(
+    () => {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      return saved ? { id: saved } : null;
+    },
+  );
 
   // Clear sessionStorage when payment succeeds or order is cancelled
   useEffect(() => {
@@ -39,17 +43,24 @@ export default function CartPage() {
     setSuccess('');
     setSubmitting(true);
     try {
-      const order = await createOrder({
+      const order: Order = await createOrder({
         userId: user.id,
-        items: cart,
+        items: cart.map((item) => ({
+          id: item.id,
+          quantity: item.quantity,
+          price: item.price,
+        })),
         totalAmount,
         deliveryAddress,
         notes,
       });
       sessionStorage.setItem(SESSION_KEY, order.id);
       setPlacedOrder(order);
-    } catch (err) {
-      setError('Błąd składania zamówienia: ' + err.message);
+    } catch (err: unknown) {
+      setError(
+        'Błąd składania zamówienia: ' +
+          (err instanceof Error ? err.message : String(err)),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -62,14 +73,14 @@ export default function CartPage() {
     setTimeout(() => navigate('/orders'), 2000);
   };
 
-  const handlePaymentError = (errorMessage) => {
+  const handlePaymentError = (errorMessage: string) => {
     setError(errorMessage);
   };
 
   const handleCancelOrder = async () => {
     try {
       const { updateOrderStatus } = await import('../services/api');
-      await updateOrderStatus(placedOrder.id, 'cancelled');
+      await updateOrderStatus(placedOrder!.id, 'cancelled');
     } catch {
       // ignore error on cancel
     }
@@ -83,8 +94,14 @@ export default function CartPage() {
         {success ? (
           <>
             <div className="text-success mb-3">
-              <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="64"
+                height="64"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+              >
+                <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z" />
               </svg>
             </div>
             <h2>Płatność udana, przekierowanie...</h2>
@@ -93,8 +110,13 @@ export default function CartPage() {
         ) : (
           <>
             <h2>Koszyk jest pusty</h2>
-            <p className="text-muted">Dodaj dania z menu, aby złożyć zamówienie.</p>
-            <button className="btn btn-primary" onClick={() => navigate('/menu')}>
+            <p className="text-muted">
+              Dodaj dania z menu, aby złożyć zamówienie.
+            </p>
+            <button
+              className="btn btn-primary"
+              onClick={() => navigate('/menu')}
+            >
               Przeglądaj menu
             </button>
           </>
@@ -127,14 +149,18 @@ export default function CartPage() {
                 <div className="d-flex align-items-center gap-2">
                   <button
                     className="btn btn-outline-secondary btn-sm"
-                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                    onClick={() =>
+                      updateQuantity(item.id, item.quantity - 1)
+                    }
                   >
                     −
                   </button>
                   <span className="fw-bold mx-1">{item.quantity}</span>
                   <button
                     className="btn btn-outline-secondary btn-sm"
-                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                    onClick={() =>
+                      updateQuantity(item.id, item.quantity + 1)
+                    }
                   >
                     +
                   </button>
@@ -157,14 +183,18 @@ export default function CartPage() {
               <hr />
               <div className="d-flex justify-content-between mb-3">
                 <span>Suma:</span>
-                <span className="fw-bold fs-5">{totalAmount.toFixed(2)} zł</span>
+                <span className="fw-bold fs-5">
+                  {totalAmount.toFixed(2)} zł
+                </span>
               </div>
 
               <div className="mb-3">
-                <label className="form-label">Adres dostawy (opcjonalnie)</label>
+                <label className="form-label">
+                  Adres dostawy (opcjonalnie)
+                </label>
                 <textarea
                   className="form-control"
-                  rows="2"
+                  rows={2}
                   value={deliveryAddress}
                   onChange={(e) => setDeliveryAddress(e.target.value)}
                   placeholder="ul. Przykładowa 1, 00-001 Warszawa"
@@ -175,7 +205,7 @@ export default function CartPage() {
                 <label className="form-label">Uwagi (opcjonalnie)</label>
                 <textarea
                   className="form-control"
-                  rows="2"
+                  rows={2}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Np. brak orzechów, extra sos..."

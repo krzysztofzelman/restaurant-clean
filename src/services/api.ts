@@ -165,7 +165,7 @@ export async function getAllOrders(): Promise<OrderWithRelations[]> {
   const { data, error } = await supabase
     .from('orders')
     .select(
-      '*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)',
+      '*, order_items:order_items(*, menu_item:menu_items(*)), profiles!user_id(full_name, email)',
     )
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -224,7 +224,7 @@ export async function getCourierOrders(): Promise<OrderWithRelations[]> {
   const { data, error } = await supabase
     .from('orders')
     .select(
-      '*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)',
+      '*, order_items:order_items(*, menu_item:menu_items(*)), profiles!user_id(full_name, email)',
     )
     .or('status.eq.ready,status.eq.in_transit')
     .order('created_at', { ascending: false });
@@ -238,7 +238,7 @@ export async function getCourierHistory(
   const { data, error } = await supabase
     .from('orders')
     .select(
-      '*, order_items:order_items(*, menu_item:menu_items(*)), profiles:user_id(full_name, email)',
+      '*, order_items:order_items(*, menu_item:menu_items(*)), profiles!user_id(full_name, email)',
     )
     .eq('courier_id', courierId)
     .eq('status', 'delivered')
@@ -359,7 +359,7 @@ export async function addIngredient(
 }
 
 export async function addBatch(
-  data: Omit<IngredientBatch, 'id' | 'created_at'>,
+  data: Omit<IngredientBatch, 'id' | 'created_at' | 'received_at'>,
 ): Promise<IngredientBatch> {
   const { data: result, error } = await supabase
     .from('ingredient_batches')
@@ -409,4 +409,120 @@ export async function deleteMenuItemIngredient(id: string): Promise<void> {
     .delete()
     .eq('id', id);
   if (error) throw error;
+}
+
+/* ──────────────── Warehouse management ──────────────── */
+
+export async function updateIngredient(
+  id: string,
+  data: Partial<Omit<IngredientWithBatches, 'id' | 'created_at' | 'total_stock' | 'ingredient_batches'>>,
+): Promise<IngredientWithBatches> {
+  const { data: result, error } = await supabase
+    .from('ingredients')
+    .update(data)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return result;
+}
+
+export async function deleteIngredient(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('ingredients')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteIngredientBatch(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('ingredient_batches')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+/* ──────────────── Warehouse stats ──────────────── */
+
+interface WarehouseStats {
+  low_stock_count: number;
+  expiring_soon_count: number;
+  expired_count: number;
+}
+
+export async function getWarehouseStats(): Promise<WarehouseStats> {
+  const { data: ingredients, error } = await supabase
+    .from('ingredients')
+    .select('*, ingredient_batches(quantity, expires_at)')
+    .order('name', { ascending: true });
+
+  if (error) throw error;
+
+  const now = new Date();
+  const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+  let low_stock_count = 0;
+  let expiring_soon_count = 0;
+  let expired_count = 0;
+
+  for (const ing of ingredients as unknown as (IngredientWithBatches & { ingredient_batches: { quantity: number; expires_at: string | null }[] })[]) {
+    const totalStock = (ing.ingredient_batches || []).reduce(
+      (sum, b) => sum + Number(b.quantity),
+      0,
+    );
+
+    if (totalStock <= (ing as unknown as { min_stock: number }).min_stock) {
+      low_stock_count++;
+    }
+
+    for (const batch of ing.ingredient_batches || []) {
+      if (batch.expires_at) {
+        const expiresAt = new Date(batch.expires_at);
+        if (expiresAt < now) {
+          expired_count++;
+        } else if (expiresAt < soon) {
+          expiring_soon_count++;
+        }
+      }
+    }
+  }
+
+  return { low_stock_count, expiring_soon_count, expired_count };
+}
+
+/* ──────────────── Revenue tracking ──────────────── */
+
+interface RevenueData {
+  today: number | null;
+  week: number | null;
+  month: number | null;
+}
+
+export async function trackRevenue(): Promise<RevenueData> {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+  const { data: orders, error } = await supabase
+    .from('orders')
+    .select('total_amount, created_at')
+    .eq('payment_status', 'paid');
+
+  if (error) throw error;
+
+  const today = orders
+    .filter((o) => o.created_at >= startOfDay)
+    .reduce((sum, o) => sum + Number(o.total_amount), 0);
+
+  const week = orders
+    .filter((o) => o.created_at >= startOfWeek)
+    .reduce((sum, o) => sum + Number(o.total_amount), 0);
+
+  const month = orders
+    .filter((o) => o.created_at >= startOfMonth)
+    .reduce((sum, o) => sum + Number(o.total_amount), 0);
+
+  return { today, week, month };
 }
