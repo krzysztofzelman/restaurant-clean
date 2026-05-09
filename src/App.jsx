@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './hooks/useCart';
+import { ToastProvider } from './context/ToastContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Navbar from './components/Navbar';
 import LoginPage from './pages/LoginPage';
@@ -146,10 +147,12 @@ export default function App() {
       <ErrorBoundary>
         <AuthProvider>
           <CartProvider>
-            <Navbar />
-            <main className="min-vh-100 bg-light">
-              <AppRoutes />
-            </main>
+            <ToastProvider>
+              <Navbar />
+              <main className="min-vh-100 bg-light">
+                <AppRoutes />
+              </main>
+            </ToastProvider>
           </CartProvider>
         </AuthProvider>
       </ErrorBoundary>

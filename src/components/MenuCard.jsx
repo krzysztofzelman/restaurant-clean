@@ -1,11 +1,13 @@
 import { useCart } from '../hooks/useCart.jsx';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 const PLACEHOLDER_IMG = 'https://placehold.co/400x300/e9ecef/6c757d?text=Brak+zdj%C4%99cia';
 
 export default function MenuCard({ item }) {
   const { addToCart } = useCart();
   const { profile } = useAuth();
+  const { showToast } = useToast();
   const role = profile?.role || 'user';
 
   const imgSrc = item.image_url || PLACEHOLDER_IMG;
@@ -30,7 +32,10 @@ export default function MenuCard({ item }) {
         {role === 'user' && (
           <button
             className="btn btn-success w-100 mt-2"
-            onClick={() => addToCart(item)}
+            onClick={() => {
+              addToCart(item);
+              showToast(`Dodano „${item.name}” do koszyka 🛒`);
+            }}
           >
             + Dodaj do koszyka
           </button>
