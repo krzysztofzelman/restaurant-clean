@@ -196,14 +196,11 @@ export async function updateDeliveryStatus(orderId, status, courierId) {
   if (courierId) {
     updates.courier_id = courierId;
   }
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('orders')
     .update(updates)
-    .eq('id', orderId)
-    .select()
-    .single();
+    .eq('id', orderId);
   if (error) throw error;
-  return data;
 }
 
 /* ──────────────── Stripe payment ──────────────── */

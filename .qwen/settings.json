@@ -12,7 +12,11 @@
       "Bash(npm uninstall *)",
       "Bash(rmdir *)",
       "Bash(del *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(python *)",
+      "Bash(powershell *)",
+      "Bash(node *)",
+      "Bash(ren *)"
     ]
   },
   "$version": 4
