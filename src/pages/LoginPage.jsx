@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getUserProfile } from '../services/api';
 
 const testAccounts = [
   { role: 'Administrator', email: 'admin@restauracja.pl', password: 'admin123' },
@@ -34,8 +35,15 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await signIn(email, password);
-      navigate('/menu');
+      const data = await signIn(email, password);
+      // Pobierz profil po zalogowaniu, aby przekierować wg roli
+      const p = await getUserProfile(data.user.id);
+      const roleRedirect = {
+        admin: '/admin',
+        kitchen: '/kitchen',
+        courier: '/courier',
+      };
+      navigate(roleRedirect[p?.role] || '/menu');
     } catch (err) {
       setError(err.message || 'Błąd logowania');
     } finally {

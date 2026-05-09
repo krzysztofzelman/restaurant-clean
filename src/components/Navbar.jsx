@@ -48,6 +48,13 @@ export default function Navbar() {
                 </Link>
               </li>
             )}
+            {(role === 'admin' || role === 'kitchen' || role === 'courier') && (
+              <li className="nav-item">
+                <Link className="nav-link" to="/dashboard">
+                  Panel
+                </Link>
+              </li>
+            )}
             {(role === 'kitchen' || role === 'admin') && (
               <li className="nav-item">
                 <Link className="nav-link" to="/kitchen">

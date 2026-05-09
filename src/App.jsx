@@ -13,6 +13,7 @@ import KitchenPage from './pages/KitchenPage';
 import AdminPage from './pages/AdminPage';
 import WarehousePage from './pages/WarehousePage';
 import CourierPage from './pages/CourierPage';
+import StaffDashboard from './pages/StaffDashboard';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import UpdatePasswordPage from './pages/UpdatePasswordPage';
 
@@ -37,7 +38,7 @@ function ProtectedRoute({ children, allowedRoles }) {
 }
 
 function PublicRoute({ children }) {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   if (loading) {
     return (
       <div className="container py-5 text-center">
@@ -45,7 +46,16 @@ function PublicRoute({ children }) {
       </div>
     );
   }
-  if (user) return <Navigate to="/menu" replace />;
+  if (user) {
+    // Przekieruj w zależności od roli
+    const roleRedirect = {
+      admin: '/admin',
+      kitchen: '/kitchen',
+      courier: '/courier',
+    };
+    const redirectPath = roleRedirect[profile?.role] || '/menu';
+    return <Navigate to={redirectPath} replace />;
+  }
   return children;
 }
 
@@ -110,6 +120,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowedRoles={['courier']}>
             <CourierPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'kitchen', 'courier']}>
+            <StaffDashboard />
           </ProtectedRoute>
         }
       />
