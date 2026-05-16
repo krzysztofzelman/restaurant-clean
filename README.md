@@ -1,378 +1,313 @@
-# 🍽️ Restauracja – Zamów Online
+# 🍽️ Restauracja – Wirtualny Kelner AI
 
-Nowoczesna aplikacja webowa do składania zamówień w restauracji z systemem ról, płatnościami Stripe i dashboardami dla personelu. Zbudowana z **React 19 + TypeScript + Vite + Supabase**.
+[![Vercel](https://img.shields.io/badge/deploy-vercel-black?logo=vercel)](https://restaurant-clean-omega.vercel.app/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase)](https://supabase.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-🌐 **Demo:** [restaurant-clean-omega.vercel.app](https://restaurant-clean-omega.vercel.app)
+Nowoczesna aplikacja webowa dla restauracji, wyposażona w **Wirtualnego Kelnera AI** – czatbota opartego na DeepSeek, który zna prawdziwe menu, przyjmuje zamówienia i rezerwacje. Panel administracyjny umożliwia zarządzanie rezerwacjami, zamówieniami, magazynem i dostawami.
 
----
-
-## Status projektu
-
-Aplikacja została **w pełni zmigrowana na TypeScript** (100% plików `.ts`/`.tsx`), przeszła **pełny audyt kodu** i wszystkie **krytyczne błędy zostały naprawione**. Build produkcyjny i ESLint przechodzą bez błędów.
-
----
-
-## Funkcje
-
-### System autoryzacji
-- Rejestracja i logowanie przez Supabase Auth (email + hasło)
-- 4 role użytkowników: `user` (klient), `kitchen` (kuchnia), `admin`, `courier` (kurier)
-- Chronione route'y – przekierowanie na `/login` dla niezalogowanych
-- Route'y ograniczone rolami – przekierowanie na `/menu` przy braku uprawnień
-- Reset hasła przez email (Supabase Auth) z dedykowaną stroną `/update-password`
-- Publiczna strona główna (wizytówka) dla niezalogowanych
-
-### Panel klienta
-- Przeglądanie menu z podziałem na kategorie
-- Dodawanie dań do koszyka (przechowywany w localStorage)
-- Koszyk z podsumowaniem i możliwością edycji
-- Składanie zamówienia z wyborem adresu i uwagami
-- **Płatności kartą przez Stripe** (sandbox) po złożeniu zamówienia
-- Historia zamówień ze statusami i możliwością płatności
-- Powiadomienia **toast** po dodaniu do koszyka
-
-### Panel kuchni
-- Lista zamówień odświeżana co 10 sekund
-- Zmiana statusów: Oczekujące → Potwierdzone → W przygotowaniu → Gotowe
-- **Powiadomienia dźwiękowe** (Web Audio API) przy nowym zamówieniu
-- **Browser push notifications** o nowych zamówieniach
-- Czerwony badge z licznikiem nowych zamówień w navbarze
-- Ukryty koszyk i przyciski "Dodaj do koszyka" (widoczne tylko dla roli `user`)
-
-### Panel admina
-- Zarządzanie menu: dodawanie, edycja, usuwanie dań, przełączanie dostępności
-- Upload zdjęć do Supabase Storage (bucket `menu-images`)
-- Zarządzanie zamówieniami: zmiana statusu, anulowanie, przełączanie płatności
-- Zarządzanie użytkownikami: zmiana roli (user/kitchen/admin/courier)
-- **Receptury**: modal z listą składników dla każdego dania, dodawanie i usuwanie
-- Automatyczne anulowanie nieopłaconych zamówień (cron)
-
-### Panel magazynu
-- Zarządzanie składnikami: dodawanie, edycja, usuwanie
-- Partie składników (batches) z datami ważności i kosztem jednostkowym
-- Śledzenie stanu magazynowego (ilość, minimalny stan, jednostka)
-- Powiązanie z recepturami dań
-
-### Panel kuriera
-- Lista zamówień gotowych do odbioru (`ready`, bez przypisanego kuriera)
-- Aktywne dostawy (`in_transit`) z możliwością zmiany statusu na `delivered`
-- **Historia dostaw** – zakończone zamówienia z przypisanym kurierem
-- Automatyczne odświeżanie co 15 sekund
-
-### Obsługa błędów i UX
-- **ErrorBoundary** – łapanie błędów renderowania UI z przyciskiem resetu
-- System **toast** (powiadomienia sukces/błąd/info)
-- Responsywny interfejs (Bootstrap 5)
-- Automatyczne przekierowanie do koszyka po zalogowaniu (jeśli użytkownik przyszedł z koszyka)
+**🌐 Wersja live:** [restaurant-clean-omega.vercel.app](https://restaurant-clean-omega.vercel.app/)
 
 ---
 
-## Wymagania
+## ✨ Funkcjonalności
 
-- **Node.js 18+**
-- **Konto Supabase** (darmowe: https://supabase.com)
-- **Konto Stripe** (darmowe sandbox: https://stripe.com) – opcjonalnie dla płatności
-
----
-
-## Konfiguracja Supabase
-
-### 1. Utwórz projekt
-1. Załóż konto na [supabase.com](https://supabase.com)
-2. Kliknij **New project** i podaj nazwę (np. `restaurant-clean`)
-3. Zapisz hasło do bazy danych – będzie potrzebne później
-4. Poczekaj na zakończenie inicjalizacji (ok. 2 min)
-
-### 2. Wykonaj schema SQL
-1. Otwórz plik `supabase-schema.sql` z repozytorium
-2. W Supabase Dashboard przejdź do **SQL Editor**
-3. Wklej całą zawartość i kliknij **Run**
-4. Schema utworzy: tabele (`profiles`, `menu_items`, `orders`, `order_items`, `ingredients`, `ingredient_batches`, `menu_item_ingredients`), RLS policies, funkcję `cancel_unpaid_orders()` i trigger automatycznego tworzenia profilu
-
-### 3. Skopiuj klucze API
-1. W Supabase Dashboard przejdź do **Project Settings → API**
-2. Skopiuj:
-   - **Project URL** → `VITE_SUPABASE_URL`
-   - **anon public key** → `VITE_SUPABASE_ANON_KEY`
-
-### 4. RLS (Row Level Security)
-Wszystkie polityki RLS są zdefiniowane w `supabase-schema.sql` i zostaną automatycznie utworzone po wykonaniu skryptu. Obejmują one:
-- Użytkownik widzi tylko swoje zamówienia i pozycje
-- Kuchnia/admin widzi wszystkie zamówienia i pozycje
-- Kurier widzi zamówienia gotowe do odbioru (`ready`, bez kuriera), swoje aktywne dostawy (`in_transit`) i historię (`delivered`)
-- Admin może zarządzać menu i użytkownikami
-- Magazyn jest dostępny dla adminów
-
-### 5. Storage (zdjęcia menu)
-Aby działał upload zdjęć w panelu admina:
-1. W Supabase Dashboard przejdź do **Storage**
-2. Utwórz bucket o nazwie `menu-images`
-3. Ustaw **Public bucket** (lub skonfiguruj własne RLS dla storage)
-4. W **Policies** dodaj politykę zezwalającą na INSERT/UPDATE dla uwierzytelnionych użytkowników z rolą `admin`
+| Funkcja | Opis |
+|---------|------|
+| 🤖 **Wirtualny Kelner AI** | Czat z modelem DeepSeek – mówi po polsku, zna menu, doradza dania, przyjmuje rezerwacje |
+| 📋 **Menu online** | Pełna karta dań (38 pozycji w 6 kategoriach) z możliwością dodawania do koszyka |
+| 🛒 **Koszyk i zamówienia** | Składanie zamówień online z płatnością przez Stripe |
+| 📅 **System rezerwacji** | Rezerwacja stolików przez czat AI lub panel – statusy: pending / confirmed / cancelled |
+| 👨‍🍳 **Panel kuchni** | Podgląd zamówień, zmiana statusu, powiadomienia dźwiękowe i push |
+| 📦 **Panel magazynu** | Zarządzanie składnikami, partiami i stanami magazynowymi |
+| 🚚 **Panel kuriera** | Przypisywanie i śledzenie dostaw |
+| 🛡️ **Panel admina** | Zarządzanie rezerwacjami (tabela + kalendarz), menu, użytkownikami, zamówieniami i recepturami |
+| 🔐 **Autoryzacja rolami** | Logowanie przez Supabase Auth – role: `admin`, `kitchen`, `courier`, `user` |
+| 📱 **Responsywność** | Bootstrap 5 – działa na desktopie, tablecie i telefonie |
 
 ---
 
-## Konfiguracja Stripe
+## 🧱 Tech Stack
 
-### 1. Załóż konto Stripe
-Wejdź na [stripe.com](https://stripe.com) i zarejestruj się (darmowe konto sandbox).
+| Warstwa | Technologia |
+|---------|-------------|
+| **Frontend** | React 19, TypeScript 6, Vite 6 |
+| **Routing** | react-router-dom 7 |
+| **Stylowanie** | Bootstrap 5.3 |
+| **Backend / DB** | Supabase (PostgreSQL, Auth, Row Level Security, Storage) |
+| **Płatności** | Stripe (Checkout + Payment Intents) |
+| **AI / Czat** | DeepSeek API (OpenAI-kompatybilny) |
+| **Edge Functions** | Supabase Edge Functions (Deno / TypeScript) |
+| **Hosting** | Vercel (frontend) + Supabase (backend) |
+| **Jakość kodu** | ESLint, Prettier, TypeScript strict mode |
 
-### 2. Pobierz klucze API
-W dashboardzie Stripe przejdź do **Developers → API keys** i skopiuj:
-- **Publishable key** – zaczyna się od `pk_test_...`
-- **Secret key** – zaczyna się od `sk_test_...`
+---
 
-### 3. Dodaj klucz publiczny do `.env`
-```env
-VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
-```
+## 🚀 Uruchomienie lokalne
 
-### 4. Wgraj Edge Function do Supabase
+### Wymagania
+
+- Node.js ≥ 18
+- Konto [Supabase](https://supabase.com) (projekt z włączoną autoryzacją)
+- Klucz API [DeepSeek](https://platform.deepseek.com/) (dla czatu AI)
+- Konto [Stripe](https://stripe.com) (tryb testowy – opcjonalnie dla płatności)
+
+### Krok po kroku
+
 ```bash
-# Zainstaluj Supabase CLI, jeśli nie masz
-npm i -g supabase
-
-# Zaloguj się
-supabase login
-
-# Wgraj funkcję
-cd supabase/functions/create-payment-intent
-supabase functions deploy create-payment-intent
-```
-
-### 5. Dodaj klucz sekretny w Supabase
-W Supabase Dashboard przejdź do **Edge Functions → Secrets** i dodaj:
-```
-STRIPE_SECRET_KEY=sk_test_...
-```
-
-### 6. Karta testowa
-Do testowania płatności użyj karty sandboxowej:
-
-| Pole        | Wartość              |
-|-------------|----------------------|
-| Numer karty | `4242 4242 4242 4242` |
-| Data        | dowolna przyszła     |
-| CVC         | dowolne 3 cyfry      |
-
-Pełna lista kart testowych: https://docs.stripe.com/testing
-
----
-
-## Konta testowe
-
-Po rejestracji przez formularz domyślnie konto ma rolę `user`. Aby nadać inne role, wykonaj odpowiednie zapytania SQL w Supabase SQL Editor.
-
-### Rejestracja kont
-Zarejestruj cztery konta przez formularz rejestracji:
-
-| Rola          | Email                    | Hasło       |
-|---------------|--------------------------|-------------|
-| Administrator | admin@restauracja.pl     | admin123    |
-| Kuchnia       | kitchen@restauracja.pl   | kitchen123  |
-| Kurier        | kurier@restauracja.pl    | kurier123   |
-| Klient        | jan@example.com          | user123     |
-
-### Nadanie ról (SQL)
-```sql
-UPDATE public.profiles SET role = 'admin' WHERE email = 'admin@restauracja.pl';
-UPDATE public.profiles SET role = 'kitchen' WHERE email = 'kitchen@restauracja.pl';
-UPDATE public.profiles SET role = 'courier' WHERE email = 'kurier@restauracja.pl';
-```
-
-Po odświeżeniu strony w navbarze pojawią się odpowiednie zakładki.
-
----
-
-## Instalacja i uruchomienie lokalne
-
-### 1. Sklonuj repozytorium
-```bash
-git clone https://github.com/krzysztofzelman/restaurant-clean.git
+# 1. Sklonuj repozytorium
+git clone https://github.com/twoja-nazwa/restaurant-clean.git
 cd restaurant-clean
-```
 
-### 2. Zainstaluj zależności
-```bash
+# 2. Zainstaluj zależności
 npm install
-```
 
-### 3. Skonfiguruj zmienne środowiskowe
-```bash
+# 3. Skopiuj zmienne środowiskowe i uzupełnij je
 cp .env.example .env
-```
-Edytuj `.env` i wstaw swoje klucze Supabase i Stripe:
-```env
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key-here
-VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...  # opcjonalnie
-```
 
-### 4. Uruchom aplikację
-```bash
+# 4. Uruchom w trybie deweloperskim
 npm run dev
 ```
 
-Aplikacja będzie dostępna pod adresem **http://localhost:3000**.
+Aplikacja będzie dostępna pod adresem **http://localhost:5173**.
 
-### Dodatkowe polecenia
+### Konfiguracja Supabase
+
+1. Utwórz projekt w [Supabase Dashboard](https://supabase.com/dashboard)
+2. Otwórz **SQL Editor** i wykonaj skrypt `supabase-schema.sql` – tworzy wszystkie tabele, RLS, triggery i seed danych (menu, konta testowe)
+3. Wykonaj migrację: `supabase/migrations/20260515_add_ai_chat_tables.sql`
+4. Włącz **Authentication → Providers → Email**
+5. Skopiuj `Project URL` i `anon public key` z **Project Settings → API** do `.env`
+
+### Konfiguracja Edge Functions
+
 ```bash
-npm run build      # build produkcyjny do dist/
-npm run preview    # podgląd builda
-npm run typecheck  # sprawdzenie typów TypeScript
-npm run lint       # ESLint
+# Zainstaluj Supabase CLI
+npm install -g supabase
+
+# Zaloguj się do projektu
+supabase login
+supabase link --project-ref twoj-projekt-ref
+
+# Wdróż funkcję czatu AI
+supabase functions deploy chat-ai --no-verify-jwt
+
+# Wdróż funkcję płatności (opcjonalnie)
+supabase functions deploy create-payment-intent
+
+# Ustaw sekrety
+supabase secrets set DEEPSEEK_API_KEY=sk-twoj-klucz
+supabase secrets set STRIPE_SECRET_KEY=sk_test_twoj-klucz
 ```
+
+### Konfiguracja Storage (zdjęcia menu)
+
+1. W Supabase Dashboard przejdź do **Storage**
+2. Utwórz bucket `menu-images` (publiczny)
+3. Dodaj politykę RLS: INSERT/UPDATE dla uwierzytelnionych z rolą `admin`
 
 ---
 
-## Struktura projektu
+## 🔐 Zmienne środowiskowe
+
+Utwórz plik `.env` na podstawie `.env.example`:
+
+```env
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_TUTAJ_WKLEJ
+```
+
+Sekrety dla Edge Functions (ustawiane przez `supabase secrets set`):
+
+| Sekret | Opis |
+|--------|------|
+| `DEEPSEEK_API_KEY` | Klucz API DeepSeek – wymagany dla czatu AI |
+| `SUPABASE_URL` | Automatycznie wstrzykiwany przez Supabase |
+| `SUPABASE_ANON_KEY` | Automatycznie wstrzykiwany przez Supabase |
+| `STRIPE_SECRET_KEY` | Sekretny klucz Stripe – dla `create-payment-intent` |
+
+---
+
+## 📁 Struktura projektu
 
 ```
 restaurant-clean/
-├── index.html                   # Entry point HTML
-├── package.json                 # Zależności i skrypty
-├── tsconfig.json                # Konfiguracja TypeScript
-├── vite.config.ts               # Konfiguracja Vite
-├── .env.example                 # Szablon zmiennych środowiskowych
-├── supabase-schema.sql          # Pełny schemat bazy + RLS + cron
+├── public/                          # Statyczne assety (favicon)
+├── src/
+│   ├── components/
+│   │   ├── admin/
+│   │   │   ├── ReservationCalendar.tsx   # Kalendarz rezerwacji
+│   │   │   ├── ReservationList.tsx        # Lista rezerwacji z filtrami
+│   │   │   └── ReservationModal.tsx       # Modal szczegółów rezerwacji
+│   │   ├── ai/
+│   │   │   └── WirtualnyKelner.tsx        # Główny komponent czatu AI
+│   │   ├── CartWidget.tsx                 # Widget koszyka w navbarze
+│   │   ├── ErrorBoundary.tsx              # Globalny catcher błędów UI
+│   │   ├── MenuCard.tsx                   # Karta dania w menu
+│   │   ├── Navbar.tsx                     # Nawigacja zależna od roli
+│   │   └── StripePayment.tsx              # Formularz płatności Stripe
+│   ├── pages/
+│   │   ├── admin/
+│   │   │   └── ReservationsAdmin.tsx      # Panel rezerwacji (admin/kitchen)
+│   │   ├── AdminPage.tsx                  # Panel admina (menu, użytkownicy, zamówienia)
+│   │   ├── CartPage.tsx                   # Koszyk + płatność
+│   │   ├── CourierPage.tsx                # Panel kuriera
+│   │   ├── HomePage.tsx                   # Strona główna (wizytówka)
+│   │   ├── KitchenPage.tsx                # Panel kuchni
+│   │   ├── LoginPage.tsx                  # Logowanie z kontami testowymi
+│   │   ├── MenuPage.tsx                   # Menu z kategoriami
+│   │   ├── OrdersPage.tsx                 # Historia zamówień klienta
+│   │   ├── RegisterPage.tsx               # Rejestracja
+│   │   ├── ResetPasswordPage.tsx          # Reset hasła
+│   │   ├── StaffDashboard.tsx             # Dashboard personelu
+│   │   ├── UpdatePasswordPage.tsx         # Ustawienie nowego hasła
+│   │   └── WarehousePage.tsx              # Panel magazynu
+│   ├── services/
+│   │   ├── aiChatService.ts               # Komunikacja z Edge Function czatu
+│   │   └── api.ts                         # Klient Supabase (zapytania)
+│   ├── context/
+│   │   ├── AuthContext.tsx                 # Kontekst autoryzacji
+│   │   └── ToastContext.tsx                # System powiadomień toast
+│   ├── hooks/
+│   │   └── useCart.tsx                     # Hook koszyka (localStorage)
+│   ├── lib/
+│   │   ├── database.types.ts               # Typy TS dla schematu bazy
+│   │   └── supabaseClient.ts               # Inicjalizacja klienta Supabase
+│   ├── types/
+│   │   └── ai.ts                           # Typy dla czatu AI
+│   ├── App.tsx                             # Routing + provider hierarchy
+│   └── main.tsx                            # Entry point
 ├── supabase/
-│   └── functions/
-│       └── create-payment-intent/
-│           └── index.ts         # Edge Function Stripe
-└── src/
-    ├── main.tsx                 # Entry point React
-    ├── App.tsx                  # Routing + provider hierarchy
-    ├── index.css                # Style globalne
-    ├── vite-env.d.ts            # Typy dla Vite env
-    ├── lib/
-    │   ├── supabaseClient.ts    # Klient Supabase
-    │   └── database.types.ts    # Typy TypeScript dla bazy
-    ├── context/
-    │   ├── AuthContext.tsx       # Kontekst autoryzacji
-    │   └── ToastContext.tsx      # System powiadomień toast
-    ├── hooks/
-    │   ├── useCart.tsx          # Hook koszyka (localStorage)
-    │   └── useKitchenNotifications.ts  # Polling + powiadomienia
-    ├── services/
-    │   └── api.ts               # Warstwa API (Supabase queries)
-    ├── components/
-    │   ├── Navbar.tsx           # Nawigacja zależna od roli
-    │   ├── CartWidget.tsx       # Widget koszyka (tylko user)
-    │   ├── MenuCard.tsx         # Karta dania w menu
-    │   ├── StripePayment.tsx    # Formularz płatności Stripe
-    │   └── ErrorBoundary.tsx    # Łapanie błędów UI
-    └── pages/
-        ├── HomePage.tsx         # Strona główna (wizytówka)
-        ├── LoginPage.tsx        # Logowanie z kontami testowymi
-        ├── RegisterPage.tsx     # Rejestracja
-        ├── ResetPasswordPage.tsx    # Formularz resetu hasła
-        ├── UpdatePasswordPage.tsx   # Ustawienie nowego hasła
-        ├── MenuPage.tsx         # Menu z kategoriami
-        ├── CartPage.tsx         # Koszyk + płatność
-        ├── OrdersPage.tsx       # Historia zamówień klienta
-        ├── KitchenPage.tsx      # Panel kuchni
-        ├── StaffDashboard.tsx   # Dashboard personelu
-        ├── CourierPage.tsx      # Panel kuriera
-        ├── WarehousePage.tsx    # Panel magazynu
-        └── AdminPage.tsx        # Panel admina
+│   ├── functions/
+│   │   ├── chat-ai/
+│   │   │   └── index.ts                    # Edge Function – czat z DeepSeek
+│   │   └── create-payment-intent/
+│   │       └── index.ts                    # Edge Function – płatności Stripe
+│   └── migrations/
+│       └── 20260515_add_ai_chat_tables.sql # Migracja tabel czatu AI
+├── supabase-schema.sql                     # Pełny schemat bazy + RLS + seed
+├── .env.example                            # Szablon zmiennych środowiskowych
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+└── eslint.config.js
 ```
 
 ---
 
-## Technologie
+## 🗄️ Baza danych (Supabase)
 
-| Technologia          | Wersja   | Zastosowanie                     |
-|----------------------|----------|----------------------------------|
-| **React**            | 19       | Framework UI                     |
-| **TypeScript**       | 6        | Typowanie                        |
-| **Vite**             | 6        | Bundler / dev server             |
-| **React Router**     | 7        | Routing                          |
-| **Supabase**         | 2        | Auth, baza danych PostgreSQL, RLS, Storage |
-| **Bootstrap**        | 5        | CSS framework (npm)              |
-| **Stripe**           | 9 / 6    | Płatności kartą (sandbox)        |
-| **ESLint**           | 10       | Linter                            |
-| **Prettier**         | 3        | Formatowanie kodu                 |
+Schemat obejmuje 7 głównych tabel:
 
----
+| Tabela | Opis |
+|--------|------|
+| `profiles` | Profile użytkowników (synchronizowane z `auth.users`), kolumna `role` z CHECK constraint |
+| `menu_items` | 38 dań w 6 kategoriach (przystawki, zupy, dania główne, pizza, desery, napoje) |
+| `orders` | Zamówienia ze statusem (pending → delivered), płatnością i przypisanym kurierem |
+| `order_items` | Pozycje zamówienia (produkt, ilość, cena jednostkowa) |
+| `rezerwacje` | Rezerwacje stolików – data, godzina, liczba gości, status, notatki |
+| `ai_chat_sessions` | Sesje czatu AI do utrzymania kontekstu rozmowy |
+| `ingredients` / `ingredient_batches` / `menu_item_ingredients` | Składniki, partie i receptury (moduł magazynowy) |
 
-## Wdrożenie na Vercel
+**Bezpieczeństwo:** RLS (Row Level Security) – każdy widzi tylko swoje dane, personel widzi wszystko. Wszystkie polityki zdefiniowane w `supabase-schema.sql`.
 
-1. **Zainstaluj CLI Vercel** (opcjonalnie):
-   ```bash
-   npm i -g vercel
-   ```
+### Konta testowe
 
-2. **Połącz repozytorium** z Vercel (dashboard → Add New → Project → Import Git Repository)
-
-3. **Podczas konfiguracji**:
-   | Ustawienie          | Wartość            |
-   |---------------------|--------------------|
-   | **Framework**       | Vite               |
-   | **Root Directory**  | `./`               |
-   | **Build Command**   | `npm run build`    |
-   | **Output Directory**| `dist`             |
-
-4. **Dodaj zmienne środowiskowe** w dashboardzie Vercel:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-   - `VITE_STRIPE_PUBLISHABLE_KEY`
-
-5. Kliknij **Deploy** – gotowe!
+| Email | Rola | Opis |
+|-------|------|------|
+| `admin@restauracja.pl` | `admin` | Pełny dostęp do panelu admina |
+| `kitchen@restauracja.pl` | `kitchen` | Panel kuchni i magazynu |
+| `kurier@restauracja.pl` | `courier` | Panel kuriera |
+| `jan@example.com` | `user` | Klient – menu, koszyk, zamówienia |
 
 ---
 
-## Automatyczne anulowanie zamówień (pg_cron)
+## 🤖 AI – Wirtualny Kelner
 
-W pliku `supabase-schema.sql` znajduje się funkcja `cancel_unpaid_orders()` anulująca nieopłacone zamówienia starsze niż 15 minut.
+### Jak działa
 
-Aby uruchamiać ją automatycznie:
+Edge Function `chat-ai` działa jako pośrednik między frontendem a DeepSeek API:
 
-1. **Włącz rozszerzenie pg_cron** w Supabase Dashboard → Database → Extensions → wyszukaj `pg_cron` → Enable
-2. **Odkomentuj** linię w `supabase-schema.sql`:
-   ```sql
-   SELECT cron.schedule('cancel-unpaid-orders', '* * * * *', 'SELECT public.cancel_unpaid_orders();');
-   ```
-3. **Wykonaj** to zapytanie w SQL Editor (lub odkomentuj i uruchom cały schema od nowa)
+1. Użytkownik pisze wiadomość w czacie (widget w prawym dolnym rogu)
+2. Frontend wysyła `POST /functions/v1/chat-ai` z historią konwersacji
+3. Funkcja analizuje wiadomość pod kątem słów kluczowych:
+   - **Menu/polecasz/cena** → do promptu dołączane jest aktualne menu z bazy danych
+   - **Rezerwacja/stolik** → funkcja może utworzyć rezerwację w tabeli `rezerwacje`
+4. DeepSeek generuje odpowiedź – po polsku, w roli kelnera
+5. Jeśli dotyczy rezerwacji – zwracane jest ID utworzonej rezerwacji
 
-Funkcja uruchamia się co minutę i anuluje zamówienia ze statusem `pending` i `payment_status = 'unpaid'` starsze niż 15 minut (ustawione przez `interval '15 minutes'`).
+### Typy akcji czatu
 
----
+| Akcja | Opis |
+|-------|------|
+| `order` | Zamówienie (przekierowanie do menu/koszyka) |
+| `reservation` | Rezerwacja stolika |
+| `menu_info` | Pytanie o menu, składniki, ceny |
+| `general` | Ogólna rozmowa (godziny otwarcia, lokalizacja itp.) |
 
-## Ostatnie zmiany
+### Obsługiwane tematy
 
-### Commit `103e84a` – fix: critical bugs after audit
-
-Pełny audyt aplikacji wykrył ~50 błędów. Poniżej najważniejsze poprawki:
-
-| Kategoria | Zmiana |
-|-----------|--------|
-| **Krytyczny** | `index.html`: naprawiono entry point z `main.jsx` → `main.tsx` |
-| **Krytyczny** | `.env.txt` skopiowany → `.env` (Vite wymaga `.env`), dodany do `.gitignore` |
-| **Krytyczny** | `ProtectedRoute` – null profile nie pomija już checka ról (security) |
-| **Krytyczny** | `OrdersPage` – nieskończony spinner dla niezalogowanego naprawiony |
-| **Krytyczny** | `api.ts` – FK join syntax `:` → `!` (zgodność z Supabase v2) |
-| **Krytyczny** | `supabase-schema.sql` – RLS kuriera: historia (`delivered`) i `order_items` dla `ready` |
-| **Admin** | NaN price guard, double-submit guard, pojedynczy upload zdjęcia |
-| **Admin** | Payment toggle nie dotyka `refunded`, duplicate ingredient guard |
-| **Warehouse** | Batch qty > 0, min_stock ≥ 0, mocniejsze ostrzeżenie przy usuwaniu |
-| **Auth** | `LoginPage` – usunięto redundantny `getUserProfile` (race condition z AuthContext) |
-| **Auth** | `RegisterPage`, `UpdatePasswordPage` – `setTimeout` z cleanup na unmount |
-| **Auth** | `UpdatePasswordPage` – akceptuje tylko `PASSWORD_RECOVERY`, nie byle jaki session |
-| **UX** | CDN Bootstrap usunięty (wersja npm wystarcza) |
-| **UX** | `useKitchenNotifications` – akumulacja delty zamiast nadpisywania |
+- Menu i polecenia dań (z rzeczywistą bazą danych)
+- Składniki i ceny
+- Rezerwacje stolików (data, godzina, liczba gości)
+- Godziny otwarcia, adres restauracji
+- Naturalna, swobodna rozmowa po polsku
 
 ---
 
-## Licencja
+## 💳 Płatności (Stripe)
+
+- Edge Function `create-payment-intent` tworzy Payment Intent dla koszyka
+- Frontend używa `@stripe/react-stripe-js` do bezpiecznego wprowadzenia danych karty
+- Karta testowa: `4242 4242 4242 4242`, dowolna przyszła data, dowolny CVC
+- Statusy płatności: `unpaid` → `paid` → `refunded`
+- Automatyczne anulowanie nieopłaconych zamówień po 15 minutach (pg_cron)
+
+---
+
+## 🧪 Skrypty
+
+```bash
+npm run dev          # Uruchom serwer deweloperski (Vite)
+npm run build        # Buduj wersję produkcyjną
+npm run preview      # Podgląd zbudowanej wersji
+npm run typecheck    # Sprawdź typy TypeScript (tsc --noEmit)
+npm run lint         # ESLint całego kodu w src/
+```
+
+---
+
+## 🌐 Wdrożenie na Vercel
+
+1. Podłącz repozytorium do [Vercel](https://vercel.com) (Import Git Repository)
+2. Ustawienia:
+
+   | Ustawienie | Wartość |
+   |---|---|
+   | **Framework** | Vite |
+   | **Build Command** | `npm run build` |
+   | **Output Directory** | `dist` |
+
+3. Dodaj zmienne środowiskowe: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_STRIPE_PUBLISHABLE_KEY`
+4. Kliknij **Deploy**
+
+---
+
+## 📸 Screenshoty
+
+*Do dodania – zrzuty ekranu głównych widoków: strona główna, menu, czat AI, panel rezerwacji admina.*
+
+---
+
+## 👤 Autor
+
+**Krzysztof Zelman**
+
+---
+
+## 📄 Licencja
 
 MIT
-#   R e s t a u r a n t   C l e a n   -   W i r t u a l n y   K e l n e r   A I  
-  
- N o w o c z e s n a   a p l i k a c j a   r e s t a u r a c j i   z   w i r t u a l n y m   k e l n e r e m   A I ,   s y s t e m e m   r e z e r w a c j i   i   p a n e l e m   a d m i n a .  
-  
- # #   T e c h   S t a c k  
- -   R e a c t   1 9   +   T y p e S c r i p t  
- -   S u p a b a s e   ( b a z a   d a n y c h ,   a u t h ,   e d g e   f u n c t i o n s )  
- -   D e e p S e e k   A I   A P I  
- -   B o o t s t r a p   5  
- 
