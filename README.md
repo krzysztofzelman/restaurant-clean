@@ -366,3 +366,13 @@ Pełny audyt aplikacji wykrył ~50 błędów. Poniżej najważniejsze poprawki:
 ## Licencja
 
 MIT
+#   R e s t a u r a n t   C l e a n   -   W i r t u a l n y   K e l n e r   A I  
+  
+ N o w o c z e s n a   a p l i k a c j a   r e s t a u r a c j i   z   w i r t u a l n y m   k e l n e r e m   A I ,   s y s t e m e m   r e z e r w a c j i   i   p a n e l e m   a d m i n a .  
+  
+ # #   T e c h   S t a c k  
+ -   R e a c t   1 9   +   T y p e S c r i p t  
+ -   S u p a b a s e   ( b a z a   d a n y c h ,   a u t h ,   e d g e   f u n c t i o n s )  
+ -   D e e p S e e k   A I   A P I  
+ -   B o o t s t r a p   5  
+ 
