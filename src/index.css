@@ -62,3 +62,62 @@ body {
     padding-right: 12px;
   }
 }
+
+/* ============================================================
+   AI Chat – Wirtualny Kelner
+   ============================================================ */
+
+/* Typing dots animation */
+@keyframes typing-bounce {
+  0%, 80%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+.typing-dot {
+  display: inline-block;
+  animation: typing-bounce 1.4s infinite ease-in-out;
+}
+
+/* Scrollbar styling for chat messages */
+.chat-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+/* Chat action buttons hover effect */
+.btn-outline-dark.rounded-pill:hover {
+  transform: scale(1.02);
+}
+
+/* Mobile: full-screen chat */
+@media (max-width: 480px) {
+  .position-fixed.shadow-lg.bg-white.rounded-4 {
+    right: 8px !important;
+    width: calc(100vw - 16px) !important;
+    height: calc(100vh - 120px) !important;
+    max-height: calc(100vh - 120px) !important;
+    border-radius: 12px !important;
+  }
+
+  .position-fixed.rounded-circle.shadow-lg {
+    width: 48px !important;
+    height: 48px !important;
+    bottom: 16px !important;
+    right: 16px !important;
+    font-size: 20px !important;
+  }
+}

@@ -83,6 +83,13 @@ export default function Navbar() {
                 </Link>
               </li>
             )}
+            {(role === 'admin' || role === 'kitchen') && (
+              <li className="nav-item">
+                <Link className="nav-link" to="/admin/reservations">
+                  Rezerwacje
+                </Link>
+              </li>
+            )}
             {role === 'courier' && (
               <li className="nav-item">
                 <Link className="nav-link" to="/courier">

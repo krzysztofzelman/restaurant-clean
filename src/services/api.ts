@@ -7,6 +7,9 @@ import type {
   IngredientWithBatches,
   IngredientBatch,
   MenuItemIngredientWithIngredient,
+  Conversation,
+  Reservation,
+  ReservationWithProfile,
 } from '../lib/database.types';
 
 /* ──────────────── Menu items ──────────────── */
@@ -525,4 +528,130 @@ export async function trackRevenue(): Promise<RevenueData> {
     .reduce((sum, o) => sum + Number(o.total_amount), 0);
 
   return { today, week, month };
+}
+
+/* ──────────────── AI Chat — Conversations ──────────────── */
+
+export async function saveConversation(
+  conversation: Omit<Conversation, 'id' | 'created_at'>,
+): Promise<Conversation> {
+  const { data, error } = await supabase
+    .from('konwersacje')
+    .insert([conversation])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getUserConversations(
+  userId: string,
+): Promise<Conversation[]> {
+  const { data, error } = await supabase
+    .from('konwersacje')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  return data;
+}
+
+/* ──────────────── AI Chat — Reservations ──────────────── */
+
+interface CheckAvailabilityParams {
+  date: string;
+  time: string;
+}
+
+export async function checkReservationAvailability({
+  date,
+  time,
+}: CheckAvailabilityParams): Promise<{ available: boolean; currentReservations: number }> {
+  const { data, error } = await supabase
+    .from('rezerwacje')
+    .select('id')
+    .eq('date', date)
+    .eq('time', time)
+    .in('status', ['pending', 'confirmed']);
+  if (error) throw error;
+
+  // Zakładamy limit 10 rezerwacji na slot czasowy
+  const currentReservations = data.length;
+  const maxPerSlot = 10;
+  return {
+    available: currentReservations < maxPerSlot,
+    currentReservations,
+  };
+}
+
+export async function createReservation(
+  reservation: Omit<Reservation, 'id' | 'created_at' | 'status'>,
+): Promise<Reservation> {
+  const { data, error } = await supabase
+    .from('rezerwacje')
+    .insert([{ ...reservation, status: 'pending' }])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function getUserReservations(
+  userId: string,
+): Promise<Reservation[]> {
+  const { data, error } = await supabase
+    .from('rezerwacje')
+    .select('*')
+    .eq('user_id', userId)
+    .order('date', { ascending: false })
+    .order('time', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+/* ──────────────── Admin — reservations ──────────────── */
+
+export interface GetAllReservationsFilters {
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+}
+
+export async function getAllReservations(
+  filters?: GetAllReservationsFilters,
+): Promise<ReservationWithProfile[]> {
+  let query = supabase
+    .from('rezerwacje')
+    .select('*, profiles!user_id(email, full_name)')
+    .order('date', { ascending: false })
+    .order('time', { ascending: false });
+
+  if (filters?.startDate) {
+    query = query.gte('date', filters.startDate);
+  }
+  if (filters?.endDate) {
+    query = query.lte('date', filters.endDate);
+  }
+  if (filters?.status) {
+    query = query.eq('status', filters.status);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data as unknown as ReservationWithProfile[];
+}
+
+export async function updateReservationStatus(
+  id: string,
+  status: 'confirmed' | 'cancelled',
+): Promise<Reservation> {
+  const { data, error } = await supabase
+    .from('rezerwacje')
+    .update({ status })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
 }

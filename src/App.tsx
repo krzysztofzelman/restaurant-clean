@@ -12,11 +12,13 @@ import OrdersPage from './pages/OrdersPage';
 import HomePage from './pages/HomePage';
 import KitchenPage from './pages/KitchenPage';
 import AdminPage from './pages/AdminPage';
+import ReservationsAdmin from './pages/admin/ReservationsAdmin';
 import WarehousePage from './pages/WarehousePage';
 import CourierPage from './pages/CourierPage';
 import StaffDashboard from './pages/StaffDashboard';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import UpdatePasswordPage from './pages/UpdatePasswordPage';
+import WirtualnyKelner from './components/ai/WirtualnyKelner';
 
 function ProtectedRoute({
   children,
@@ -123,6 +125,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/reservations"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'kitchen']}>
+            <ReservationsAdmin />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/warehouse"
         element={
           <ProtectedRoute allowedRoles={['kitchen', 'admin']}>
@@ -162,6 +172,7 @@ export default function App() {
               <main className="min-vh-100 bg-light">
                 <AppRoutes />
               </main>
+              <WirtualnyKelner />
             </ToastProvider>
           </CartProvider>
         </AuthProvider>

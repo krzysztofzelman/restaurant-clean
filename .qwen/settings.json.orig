@@ -12,8 +12,18 @@
       "Bash(npm uninstall *)",
       "Bash(rmdir *)",
       "Bash(del *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(python *)",
+      "Bash(powershell *)",
+      "Bash(node *)",
+      "Bash(ren *)",
+      "Bash(findstr *)",
+      "Bash(git show *)",
+      "Bash(copy *)",
+      "Bash(echo.)",
+      "Bash(echo *)",
+      "Bash(dir *)"
     ]
   },
-  "$version": 3
+  "$version": 4
 }

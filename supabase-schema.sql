@@ -541,3 +541,73 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- ============================================================
+-- 8. AI CZAT – Konwersacje i rezerwacje
+-- ============================================================
+
+-- Konwersacje
+CREATE TABLE IF NOT EXISTS public.konwersacje (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.konwersacje ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS idx_konwersacje_user_id ON public.konwersacje(user_id);
+
+CREATE POLICY "Users view own conversations"
+  ON public.konwersacje FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users insert own conversations"
+  ON public.konwersacje FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Admins view all conversations"
+  ON public.konwersacje FOR SELECT
+  USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Admins delete conversations"
+  ON public.konwersacje FOR DELETE
+  USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+
+-- Rezerwacje
+CREATE TABLE IF NOT EXISTS public.rezerwacje (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  time TIME NOT NULL,
+  guests INTEGER NOT NULL CHECK (guests >= 1),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled')),
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.rezerwacje ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS idx_rezerwacje_user_id ON public.rezerwacje(user_id);
+CREATE INDEX IF NOT EXISTS idx_rezerwacje_date_time ON public.rezerwacje(date, time);
+
+CREATE POLICY "Users view own reservations"
+  ON public.rezerwacje FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users insert own reservations"
+  ON public.rezerwacje FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users update own reservations"
+  ON public.rezerwacje FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Staff view all reservations"
+  ON public.rezerwacje FOR SELECT
+  USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'kitchen')));
+
+CREATE POLICY "Staff update all reservations"
+  ON public.rezerwacje FOR UPDATE
+  USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'kitchen')));

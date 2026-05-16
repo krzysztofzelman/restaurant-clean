@@ -99,6 +99,32 @@ export interface MenuItemIngredientWithIngredient extends MenuItemIngredient {
   ingredient: Ingredient;
 }
 
+/* ──────────────── AI Chat ──────────────── */
+
+export type ReservationStatus = 'pending' | 'confirmed' | 'cancelled';
+
+export interface Conversation {
+  id: string;
+  user_id: string;
+  messages: Json;
+  created_at: string;
+}
+
+export interface Reservation {
+  id: string;
+  user_id: string;
+  date: string;
+  time: string;
+  guests: number;
+  status: ReservationStatus;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface ReservationWithProfile extends Reservation {
+  profiles: Pick<Profile, 'email' | 'full_name'> | null;
+}
+
 // Helper type for Supabase response rows
 export interface Tables {
   profiles: Profile;
@@ -108,4 +134,6 @@ export interface Tables {
   ingredients: Ingredient;
   ingredient_batches: IngredientBatch;
   menu_item_ingredients: MenuItemIngredient;
+  konwersacje: Conversation;
+  rezerwacje: Reservation;
 }
