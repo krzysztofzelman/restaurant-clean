@@ -118,38 +118,15 @@ export async function createOrder({
   deliveryAddress,
   notes,
 }: CreateOrderParams): Promise<Order> {
-  // 1. create order
-  const { data: order, error: orderError } = await supabase
-    .from('orders')
-    .insert([
-      {
-        user_id: userId,
-        status: 'pending',
-        total_amount: totalAmount,
-        payment_status: 'unpaid',
-        delivery_address: deliveryAddress || null,
-        notes: notes || null,
-      },
-    ])
-    .select()
-    .single();
-  if (orderError) throw orderError;
-
-  // 2. create order_items
-  const orderItems = items.map((item) => ({
-    order_id: order.id,
-    menu_item_id: item.id,
-    quantity: item.quantity,
-    unit_price: item.price,
-    subtotal: item.price * item.quantity,
-  }));
-
-  const { error: itemsError } = await supabase
-    .from('order_items')
-    .insert(orderItems);
-  if (itemsError) throw itemsError;
-
-  return order;
+  const { data, error } = await supabase.rpc('create_order_with_items', {
+    p_user_id: userId,
+    p_items: items,
+    p_total_amount: totalAmount,
+    p_delivery_address: deliveryAddress || null,
+    p_notes: notes || null,
+  });
+  if (error) throw error;
+  return data as unknown as Order;
 }
 
 export async function getMyOrders(
@@ -179,32 +156,12 @@ export async function updateOrderStatus(
   orderId: string,
   status: string,
 ): Promise<Order> {
-  const { data, error } = await supabase
-    .from('orders')
-    .update({ status })
-    .eq('id', orderId)
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc('update_order_status', {
+    p_order_id: orderId,
+    p_new_status: status,
+  });
   if (error) throw error;
-
-  // Gdy zamówienie jest potwierdzane — odejmij składniki z magazynu (FIFO)
-  if (status === 'confirmed') {
-    const { error: consumeError } = await supabase.rpc(
-      'consume_ingredients_for_order',
-      {
-        p_order_id: orderId,
-      },
-    );
-    if (consumeError) {
-      // Logujemy błąd, ale nie blokujemy — zamówienie już jest potwierdzone
-      console.warn(
-        'Błąd podczas odejmowania składników (zamówienie potwierdzone):',
-        consumeError,
-      );
-    }
-  }
-
-  return data;
+  return data as unknown as Order;
 }
 
 export async function updatePaymentStatus(
@@ -255,14 +212,11 @@ export async function updateDeliveryStatus(
   status: string,
   courierId?: string,
 ): Promise<void> {
-  const updates: Record<string, string> = { status };
-  if (courierId) {
-    updates.courier_id = courierId;
-  }
-  const { error } = await supabase
-    .from('orders')
-    .update(updates)
-    .eq('id', orderId);
+  const { error } = await supabase.rpc('update_order_status', {
+    p_order_id: orderId,
+    p_new_status: status,
+    p_courier_id: courierId || null,
+  });
   if (error) throw error;
 }
 
@@ -455,79 +409,24 @@ interface WarehouseStats {
 }
 
 export async function getWarehouseStats(): Promise<WarehouseStats> {
-  const { data: ingredients, error } = await supabase
-    .from('ingredients')
-    .select('*, ingredient_batches(quantity, expires_at)')
-    .order('name', { ascending: true });
-
+  const { data, error } = await supabase.rpc('get_warehouse_stats');
   if (error) throw error;
-
-  const now = new Date();
-  const soon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
-
-  let low_stock_count = 0;
-  let expiring_soon_count = 0;
-  let expired_count = 0;
-
-  for (const ing of ingredients as unknown as (IngredientWithBatches & { ingredient_batches: { quantity: number; expires_at: string | null }[] })[]) {
-    const totalStock = (ing.ingredient_batches || []).reduce(
-      (sum, b) => sum + Number(b.quantity),
-      0,
-    );
-
-    if (totalStock <= (ing as unknown as { min_stock: number }).min_stock) {
-      low_stock_count++;
-    }
-
-    for (const batch of ing.ingredient_batches || []) {
-      if (batch.expires_at) {
-        const expiresAt = new Date(batch.expires_at);
-        if (expiresAt < now) {
-          expired_count++;
-        } else if (expiresAt < soon) {
-          expiring_soon_count++;
-        }
-      }
-    }
-  }
-
-  return { low_stock_count, expiring_soon_count, expired_count };
+  return data as unknown as WarehouseStats;
 }
 
 /* ──────────────── Revenue tracking ──────────────── */
 
 interface RevenueData {
-  today: number | null;
-  week: number | null;
-  month: number | null;
+  today: number;
+  week: number;
+  month: number;
 }
 
 export async function trackRevenue(): Promise<RevenueData> {
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
-  const { data: orders, error } = await supabase
-    .from('orders')
-    .select('total_amount, created_at')
-    .eq('payment_status', 'paid');
-
+  const { data, error } = await supabase.rpc('track_revenue');
   if (error) throw error;
-
-  const today = orders
-    .filter((o) => o.created_at >= startOfDay)
-    .reduce((sum, o) => sum + Number(o.total_amount), 0);
-
-  const week = orders
-    .filter((o) => o.created_at >= startOfWeek)
-    .reduce((sum, o) => sum + Number(o.total_amount), 0);
-
-  const month = orders
-    .filter((o) => o.created_at >= startOfMonth)
-    .reduce((sum, o) => sum + Number(o.total_amount), 0);
-
-  return { today, week, month };
+  const row = data as unknown as { today: number; week: number; month: number };
+  return row;
 }
 
 /* ──────────────── AI Chat — Conversations ──────────────── */

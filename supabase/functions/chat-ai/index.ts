@@ -10,6 +10,43 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/* ──────────────── RATE LIMITER ──────────────── */
+
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+
+const RATE_LIMIT_MAP = new Map<string, RateLimitEntry>();
+const RATE_LIMIT_MAX = 20;       // max requests per window
+const RATE_LIMIT_WINDOW = 60_000; // 1 minute window (ms)
+
+function checkRateLimit(clientIp: string): { allowed: boolean; remaining: number; resetAt: number } {
+  const now = Date.now();
+  const entry = RATE_LIMIT_MAP.get(clientIp);
+
+  if (!entry || now > entry.resetAt) {
+    // New window
+    RATE_LIMIT_MAP.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return { allowed: true, remaining: RATE_LIMIT_MAX - 1, resetAt: now + RATE_LIMIT_WINDOW };
+  }
+
+  entry.count += 1;
+  if (entry.count > RATE_LIMIT_MAX) {
+    return { allowed: false, remaining: 0, resetAt: entry.resetAt };
+  }
+
+  return { allowed: true, remaining: RATE_LIMIT_MAX - entry.count, resetAt: entry.resetAt };
+}
+
+// Cleanup stale entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of RATE_LIMIT_MAP) {
+    if (now > val.resetAt) RATE_LIMIT_MAP.delete(key);
+  }
+}, 300_000);
+
 /* ───────────────┐
   │  Stałe        │
   └────────────────*/
@@ -232,6 +269,51 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // --- Rate limiting ---
+  const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || req.headers.get('x-real-ip')
+    || 'unknown';
+  const rateCheck = checkRateLimit(clientIp);
+  if (!rateCheck.allowed) {
+    return new Response(
+      JSON.stringify({
+        reply: 'Przepraszam, przekroczono limit zapytań. Spróbuj ponownie za minutę.',
+      }),
+      {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Retry-After': String(Math.ceil((rateCheck.resetAt - Date.now()) / 1000)),
+          'X-RateLimit-Remaining': '0',
+        },
+      },
+    );
+  }
+
+  // --- JWT verification ---
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(
+      JSON.stringify({ error: 'Brak tokena autoryzacyjnego. Zaloguj się.' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    { global: { headers: { Authorization: authHeader } } },
+  );
+
+  const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+  if (authError || !user) {
+    return new Response(
+      JSON.stringify({ error: 'Nieprawidłowy token autoryzacyjny.' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    );
+  }
+
   try {
     // --- Parse request ---
     const { message, userId, conversationHistory } = await req.json();
@@ -267,10 +349,7 @@ serve(async (req) => {
       baseURL: 'https://api.deepseek.com/v1',
     });
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    );
+    const supabase = supabaseClient;
 
     // --- Zdecyduj czy dołożyć menu do promptu ---
     // Nie pobieraj menu jeśli rozmowa dotyczy tylko rezerwacji (oszczędność tokenów)

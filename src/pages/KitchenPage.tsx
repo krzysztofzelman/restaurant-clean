@@ -1,72 +1,19 @@
-import { useEffect, useState, useCallback } from 'react';
-import { getAllOrders, updateOrderStatus } from '../services/api';
-import useKitchenNotifications from '../hooks/useKitchenNotifications';
-import type { OrderWithRelations, OrderStatus } from '../lib/database.types';
-
-const statusLabels: Record<OrderStatus, string> = {
-  pending: 'Oczekujące',
-  confirmed: 'Potwierdzone',
-  preparing: 'W przygotowaniu',
-  ready: 'Gotowe',
-  in_transit: 'W drodze',
-  delivered: 'Dostarczone',
-  cancelled: 'Anulowane',
-};
-
-const statusColors: Record<OrderStatus, string> = {
-  pending: 'warning',
-  confirmed: 'info',
-  preparing: 'primary',
-  ready: 'success',
-  in_transit: 'dark',
-  delivered: 'secondary',
-  cancelled: 'danger',
-};
-
-const nextStatus: Partial<Record<OrderStatus, OrderStatus>> = {
-  pending: 'confirmed',
-  confirmed: 'preparing',
-  preparing: 'ready',
-};
+import { useEffect, useState } from 'react';
+import { updateOrderStatus } from '../services/api';
+import useOrders from '../hooks/useOrders';
+import { statusLabels, statusColors, nextStatus } from '../constants/orderStatus';
+import type { OrderStatus } from '../lib/database.types';
 
 export default function KitchenPage() {
-  const [orders, setOrders] = useState<OrderWithRelations[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [filter, setFilter] = useState('active');
-
-  const { resetCount } = useKitchenNotifications();
+  const { orders, loading, error, refresh } = useOrders(10000);
 
   // Request notification permission on mount
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
-    // Reset the badge count when kitchen page is opened
-    resetCount();
-  }, [resetCount]);
-
-  const loadOrders = useCallback(async () => {
-    try {
-      const data = await getAllOrders();
-      setOrders(data);
-    } catch (err: unknown) {
-      setError(
-        'Błąd ładowania zamówień: ' +
-          (err instanceof Error ? err.message : String(err)),
-      );
-    } finally {
-      setLoading(false);
-    }
   }, []);
-
-  // Initial load + auto-refresh every 10s
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadOrders();
-    const interval = setInterval(loadOrders, 10000);
-    return () => clearInterval(interval);
-  }, [loadOrders]);
 
   const handleStatusChange = async (
     orderId: string,
@@ -74,7 +21,7 @@ export default function KitchenPage() {
   ) => {
     try {
       await updateOrderStatus(orderId, newStatus);
-      await loadOrders();
+      refresh();
     } catch (err: unknown) {
       alert('Błąd: ' + (err instanceof Error ? err.message : String(err)));
     }

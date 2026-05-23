@@ -1,11 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  getAllOrders,
-  getWarehouseStats,
-  trackRevenue,
-} from '../services/api';
-import type { OrderWithRelations, OrderStatus } from '../lib/database.types';
+import { getWarehouseStats, trackRevenue } from '../services/api';
+import useOrders from '../hooks/useOrders';
+import { statusLabels, statusColors } from '../constants/orderStatus';
 
 interface WarehouseStat {
   low_stock_count: number;
@@ -19,28 +16,8 @@ interface RevenueData {
   month: number | null;
 }
 
-const statusLabels: Record<OrderStatus, string> = {
-  pending: 'Oczekujące',
-  confirmed: 'Potwierdzone',
-  preparing: 'W przygotowaniu',
-  ready: 'Gotowe',
-  in_transit: 'W drodze',
-  delivered: 'Dostarczone',
-  cancelled: 'Anulowane',
-};
-
-const statusColors: Record<OrderStatus, string> = {
-  pending: 'warning',
-  confirmed: 'info',
-  preparing: 'primary',
-  ready: 'success',
-  in_transit: 'dark',
-  delivered: 'secondary',
-  cancelled: 'danger',
-};
-
 export default function StaffDashboard() {
-  const [orders, setOrders] = useState<OrderWithRelations[]>([]);
+  const { orders, loading: ordersLoading, error: ordersError } = useOrders(30000);
   const [warehouseStats, setWarehouseStats] = useState<WarehouseStat | null>(
     null,
   );
@@ -49,17 +26,15 @@ export default function StaffDashboard() {
     week: null,
     month: null,
   });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [secondaryLoading, setSecondaryLoading] = useState(true);
+  const [secondaryError, setSecondaryError] = useState('');
 
-  const loadData = useCallback(async () => {
+  const loadSecondaryData = useCallback(async () => {
     try {
-      const [ordersData, warehouseData, revenueData] = await Promise.all([
-        getAllOrders(),
+      const [warehouseData, revenueData] = await Promise.all([
         getWarehouseStats().catch(() => null),
         trackRevenue(),
       ]);
-      setOrders(ordersData);
       setWarehouseStats(warehouseData);
       setRevenue({
         today: revenueData.today,
@@ -67,21 +42,23 @@ export default function StaffDashboard() {
         month: revenueData.month,
       });
     } catch (err: unknown) {
-      setError(
+      setSecondaryError(
         'Błąd ładowania danych: ' +
           (err instanceof Error ? err.message : String(err)),
       );
     } finally {
-      setLoading(false);
+      setSecondaryLoading(false);
     }
   }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadData();
-    const interval = setInterval(loadData, 30000);
+    loadSecondaryData();
+    const interval = setInterval(loadSecondaryData, 30000);
     return () => clearInterval(interval);
-  }, [loadData]);
+  }, [loadSecondaryData]);
+
+  const loading = ordersLoading || secondaryLoading;
 
   if (loading) {
     return (
@@ -99,7 +76,8 @@ export default function StaffDashboard() {
   return (
     <div className="container py-4">
       <h2 className="mb-4">Panel zarządzania</h2>
-      {error && <div className="alert alert-danger">{error}</div>}
+      {secondaryError && <div className="alert alert-danger">{secondaryError}</div>}
+      {ordersError && <div className="alert alert-danger">{ordersError}</div>}
 
       {/* Dashboard cards */}
       <div className="row g-3 mb-4">
@@ -264,7 +242,7 @@ export default function StaffDashboard() {
                   </td>
                   <td>
                     <Link
-                      to={`/orders/${order.id}`}
+                      to="/orders"
                       className="btn btn-outline-primary btn-sm"
                     >
                       Szczegóły

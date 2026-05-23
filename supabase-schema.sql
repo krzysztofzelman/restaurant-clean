@@ -87,6 +87,12 @@ CREATE TABLE IF NOT EXISTS public.order_items (
 
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 
+-- Indeksy dla wydajności zapytań
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON public.orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items(order_id);
+
 -- ============================================================
 -- 2. TRIGGER: synchronizacja auth.users → public.profiles
 -- ============================================================
@@ -313,6 +319,41 @@ CREATE POLICY "Users can insert own order items"
       SELECT 1 FROM public.orders
       WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid()
     )
+  );
+
+-- ============================================================
+-- 4b. POLITYKI RLS DLA STORAGE (bucket 'menu-images')
+-- ============================================================
+
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+-- Każdy zalogowany użytkownik może oglądać obrazy menu
+CREATE POLICY "Users can view menu images"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'menu-images');
+
+-- Tylko admin/kitchen może przesyłać obrazy
+CREATE POLICY "Admin can upload menu images"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'menu-images'
+    AND EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'kitchen'))
+  );
+
+-- Tylko admin/kitchen może aktualizować obrazy
+CREATE POLICY "Admin can update menu images"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'menu-images'
+    AND EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'kitchen'))
+  );
+
+-- Tylko admin/kitchen może usuwać obrazy
+CREATE POLICY "Admin can delete menu images"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'menu-images'
+    AND EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'kitchen'))
   );
 
 -- ============================================================

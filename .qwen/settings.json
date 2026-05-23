@@ -23,7 +23,8 @@
       "Bash(echo.)",
       "Bash(echo *)",
       "Bash(dir *)",
-      "Bash(ver)"
+      "Bash(ver)",
+      "Agent(Explore)"
     ]
   },
   "$version": 4

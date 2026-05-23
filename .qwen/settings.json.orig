@@ -22,7 +22,8 @@
       "Bash(copy *)",
       "Bash(echo.)",
       "Bash(echo *)",
-      "Bash(dir *)"
+      "Bash(dir *)",
+      "Bash(ver)"
     ]
   },
   "$version": 4

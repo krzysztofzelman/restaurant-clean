@@ -1,27 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getCourierOrders, updateDeliveryStatus, getCourierHistory } from '../services/api';
+import { statusLabels, statusColors } from '../constants/orderStatus';
 import type { OrderWithRelations, OrderStatus } from '../lib/database.types';
-
-const statusLabels: Record<OrderStatus, string> = {
-  pending: 'Oczekujące',
-  confirmed: 'Potwierdzone',
-  preparing: 'W przygotowaniu',
-  ready: 'Gotowe',
-  in_transit: 'W drodze',
-  delivered: 'Dostarczone',
-  cancelled: 'Anulowane',
-};
-
-const statusColors: Record<OrderStatus, string> = {
-  pending: 'warning',
-  confirmed: 'info',
-  preparing: 'primary',
-  ready: 'success',
-  in_transit: 'primary',
-  delivered: 'secondary',
-  cancelled: 'danger',
-};
 
 export default function CourierPage() {
   const { user } = useAuth();

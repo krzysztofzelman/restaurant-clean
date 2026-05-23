@@ -16,6 +16,40 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24h
+const STORAGE_KEY = 'restaurant_session_start';
+
+function getSessionStart(): number | null {
+  try {
+    const val = localStorage.getItem(STORAGE_KEY);
+    return val ? Number(val) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setSessionStart() {
+  try {
+    localStorage.setItem(STORAGE_KEY, String(Date.now()));
+  } catch {
+    // localStorage niedostępny
+  }
+}
+
+function clearSessionStart() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // localStorage niedostępny
+  }
+}
+
+function isSessionExpired(): boolean {
+  const start = getSessionStart();
+  if (!start) return false;
+  return Date.now() - start > SESSION_TIMEOUT_MS;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -32,10 +66,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function signOut() {
+    clearSessionStart();
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  }
+
   useEffect(() => {
-    // Check active session
+    // Check active session + session timeout
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
+        // Sprawdź czy sesja nie wygasła
+        if (isSessionExpired()) {
+          signOut().catch(() => {});
+          setLoading(false);
+          return;
+        }
         setUser(session.user);
         loadProfile(session.user.id);
       } else {
@@ -47,9 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event: string, session) => {
         if (session?.user) {
+          setSessionStart();
           setUser(session.user);
           loadProfile(session.user.id);
         } else {
+          clearSessionStart();
           setUser(null);
           setProfile(null);
           setLoading(false);
@@ -77,11 +125,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (error) throw error;
     return data;
-  }
-
-  async function signOut() {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
   }
 
   const refreshProfile = async () => {

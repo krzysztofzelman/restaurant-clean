@@ -16,6 +16,7 @@ import {
   addMenuItemIngredient,
   deleteMenuItemIngredient,
 } from '../services/api';
+// AdminPage deleguje do AdminOrdersTab i AdminMenuTab, które same importują stałe
 import type {
   MenuItem,
   OrderWithRelations,
@@ -24,6 +25,9 @@ import type {
   MenuItemIngredientWithIngredient,
   IngredientWithBatches,
 } from '../lib/database.types';
+import AdminOrdersTab from '../components/admin/AdminOrdersTab';
+import AdminMenuTab from '../components/admin/AdminMenuTab';
+import AdminUsersTab from '../components/admin/AdminUsersTab';
 
 type Tab = 'orders' | 'menu' | 'users';
 
@@ -36,32 +40,6 @@ interface MenuItemForm {
   image_url: string;
 }
 
-const statusLabels: Record<OrderStatus, string> = {
-  pending: 'Oczekujące',
-  confirmed: 'Potwierdzone',
-  preparing: 'W przygotowaniu',
-  ready: 'Gotowe',
-  in_transit: 'W drodze',
-  delivered: 'Dostarczone',
-  cancelled: 'Anulowane',
-};
-
-const statusColors: Record<OrderStatus, string> = {
-  pending: 'warning',
-  confirmed: 'info',
-  preparing: 'primary',
-  ready: 'success',
-  in_transit: 'dark',
-  delivered: 'secondary',
-  cancelled: 'danger',
-};
-
-const nextStatus: Partial<Record<OrderStatus, OrderStatus>> = {
-  pending: 'confirmed',
-  confirmed: 'preparing',
-  preparing: 'ready',
-};
-
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>('orders');
   const [orders, setOrders] = useState<OrderWithRelations[]>([]);
@@ -70,7 +48,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // New menu item form
+  // Menu form
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<MenuItem | null>(null);
   const [form, setForm] = useState<MenuItemForm>({
@@ -86,12 +64,8 @@ export default function AdminPage() {
 
   // Recipe modal
   const [recipeModal, setRecipeModal] = useState<MenuItem | null>(null);
-  const [recipeIngredients, setRecipeIngredients] = useState<
-    MenuItemIngredientWithIngredient[]
-  >([]);
-  const [allIngredients, setAllIngredients] = useState<IngredientWithBatches[]>(
-    [],
-  );
+  const [recipeIngredients, setRecipeIngredients] = useState<MenuItemIngredientWithIngredient[]>([]);
+  const [allIngredients, setAllIngredients] = useState<IngredientWithBatches[]>([]);
   const [newIngredientId, setNewIngredientId] = useState('');
   const [newIngredientQty, setNewIngredientQty] = useState('');
   const [recipeLoading, setRecipeLoading] = useState(false);
@@ -132,10 +106,7 @@ export default function AdminPage() {
     }
   }
 
-  async function handlePaymentToggle(
-    orderId: string,
-    currentStatus: string,
-  ) {
+  async function handlePaymentToggle(orderId: string, currentStatus: string) {
     if (!window.confirm('Czy na pewno chcesz zmienić status płatności?')) return;
     if (currentStatus === 'refunded') {
       alert('Nie można zmienić statusu płatności dla zwróconego zamówienia.');
@@ -169,8 +140,6 @@ export default function AdminPage() {
     }
     setSubmitting(true);
     try {
-      let savedItem: MenuItem;
-
       const payload = {
         name: form.name,
         description: form.description,
@@ -180,13 +149,10 @@ export default function AdminPage() {
         image_url: form.image_url || null,
       };
 
-      if (editItem) {
-        savedItem = await updateMenuItem(editItem.id, payload);
-      } else {
-        savedItem = await addMenuItem(payload);
-      }
+      const savedItem = editItem
+        ? await updateMenuItem(editItem.id, payload)
+        : await addMenuItem(payload);
 
-      // Upload image after saving, so we have the real ID
       if (imageFile) {
         const finalUrl = await uploadMenuImage(imageFile, savedItem.id);
         await updateMenuItem(savedItem.id, { image_url: finalUrl });
@@ -241,6 +207,20 @@ export default function AdminPage() {
     setImagePreview(null);
   }
 
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  }
+
+  function removeImage() {
+    setImageFile(null);
+    setImagePreview(null);
+    setForm({ ...form, image_url: '' });
+  }
+
   async function handleRoleChange(userId: string, newRole: string) {
     try {
       await updateUserRole(userId, newRole);
@@ -250,8 +230,7 @@ export default function AdminPage() {
     }
   }
 
-  // ─── Recipe modal ───
-
+  // Recipe modal handlers
   async function openRecipeModal(item: MenuItem) {
     setRecipeModal(item);
     setNewIngredientId('');
@@ -265,10 +244,7 @@ export default function AdminPage() {
       setRecipeIngredients(ings);
       setAllIngredients(allIngs);
     } catch (err: unknown) {
-      alert(
-        'Błąd ładowania receptury: ' +
-          (err instanceof Error ? err.message : String(err)),
-      );
+      alert('Błąd ładowania receptury: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setRecipeLoading(false);
     }
@@ -281,8 +257,7 @@ export default function AdminPage() {
   }
 
   async function handleAddIngredient() {
-    if (!newIngredientId || !newIngredientQty) return;
-    if (!recipeModal) return;
+    if (!newIngredientId || !newIngredientQty || !recipeModal) return;
     if (recipeIngredients.some((ri) => ri.ingredient_id === newIngredientId)) {
       alert('Ten składnik jest już dodany do receptury.');
       return;
@@ -353,454 +328,52 @@ export default function AdminPage() {
         </li>
       </ul>
 
-      {/* ──────── Orders tab ──────── */}
       {tab === 'orders' && (
-        <div className="table-responsive">
-          <table className="table table-striped">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Klient</th>
-                <th>Data</th>
-                <th>Status</th>
-                <th>Płatność</th>
-                <th>Kwota</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((o) => (
-                <tr key={o.id}>
-                  <td className="small">#{o.id.slice(0, 8)}</td>
-                  <td>
-                    {o.profiles?.full_name || o.profiles?.email || '—'}
-                  </td>
-                  <td className="small">
-                    {new Date(o.created_at).toLocaleString('pl-PL')}
-                  </td>
-                  <td>
-                    <div className="d-flex align-items-center gap-1 flex-wrap">
-                      <span
-                        className={`badge bg-${statusColors[o.status] || 'secondary'}`}
-                      >
-                        {statusLabels[o.status] || o.status}
-                      </span>
-                      {nextStatus[o.status] && (
-                        <button
-                          className="btn btn-outline-success btn-sm py-0 px-1"
-                          title={statusLabels[nextStatus[o.status]!]}
-                          onClick={() =>
-                            handleStatusChange(o.id, nextStatus[o.status]!)
-                          }
-                        >
-                          →
-                        </button>
-                      )}
-                      {o.status !== 'cancelled' &&
-                        o.status !== 'delivered' && (
-                          <button
-                            className="btn btn-outline-danger btn-sm py-0 px-1"
-                            title="Anuluj"
-                            onClick={() =>
-                              handleStatusChange(o.id, 'cancelled')
-                            }
-                          >
-                            ✕
-                          </button>
-                        )}
-                    </div>
-                  </td>
-                  <td>
-                    <span
-                      className={`badge bg-${o.payment_status === 'paid' ? 'success' : 'danger'} cursor-pointer`}
-                      style={{ cursor: 'pointer' }}
-                      onClick={() =>
-                        handlePaymentToggle(o.id, o.payment_status)
-                      }
-                      title={
-                        o.payment_status === 'paid'
-                          ? 'Kliknij aby cofnąć płatność'
-                          : 'Kliknij aby oznaczyć jako opłacone'
-                      }
-                    >
-                      {o.payment_status === 'paid'
-                        ? 'Opłacone'
-                        : 'Nieopłacone'}
-                    </span>
-                  </td>
-                  <td className="fw-bold">
-                    {Number(o.total_amount).toFixed(2)} zł
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AdminOrdersTab
+          orders={orders}
+          onStatusChange={handleStatusChange}
+          onPaymentToggle={handlePaymentToggle}
+        />
       )}
 
-      {/* ──────── Menu tab ──────── */}
       {tab === 'menu' && (
-        <div>
-          <button
-            className="btn btn-primary mb-3"
-            onClick={() => {
-              setEditItem(null);
-              resetForm();
-              setShowForm(!showForm);
-            }}
-          >
-            {showForm ? 'Anuluj' : '+ Dodaj danie'}
-          </button>
-
-          {showForm && (
-            <div className="card mb-4 shadow-sm">
-              <div className="card-body">
-                <h5>{editItem ? 'Edytuj danie' : 'Nowe danie'}</h5>
-                <form onSubmit={handleSaveMenuItem}>
-                  <div className="row g-3">
-                    <div className="col-md-4">
-                      <label className="form-label">Nazwa</label>
-                      <input
-                        className="form-control"
-                        value={form.name}
-                        onChange={(e) =>
-                          setForm({ ...form, name: e.target.value })
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="col-md-4">
-                      <label className="form-label">Kategoria</label>
-                      <input
-                        className="form-control"
-                        value={form.category}
-                        onChange={(e) =>
-                          setForm({ ...form, category: e.target.value })
-                        }
-                        placeholder="np. Obiady, Zupy, Napoje"
-                        required
-                      />
-                    </div>
-                    <div className="col-md-2">
-                      <label className="form-label">Cena (zł)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        className="form-control"
-                        value={form.price}
-                        onChange={(e) =>
-                          setForm({ ...form, price: e.target.value })
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="col-md-2 d-flex align-items-end">
-                      <div className="form-check">
-                        <input
-                          type="checkbox"
-                          className="form-check-input"
-                          id="isAvailable"
-                          checked={form.is_available}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              is_available: e.target.checked,
-                            })
-                          }
-                        />
-                        <label
-                          className="form-check-label"
-                          htmlFor="isAvailable"
-                        >
-                          Dostępne
-                        </label>
-                      </div>
-                    </div>
-                    <div className="col-12">
-                      <label className="form-label">Opis</label>
-                      <textarea
-                        className="form-control"
-                        rows={2}
-                        value={form.description}
-                        onChange={(e) =>
-                          setForm({ ...form, description: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div className="col-12">
-                      <label className="form-label">Zdjęcie</label>
-                      <input
-                        type="file"
-                        className="form-control"
-                        accept="image/*"
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            setImageFile(file);
-                            setImagePreview(URL.createObjectURL(file));
-                          }
-                        }}
-                      />
-                      {imagePreview && (
-                        <div className="mt-2">
-                          <img
-                            src={imagePreview}
-                            alt="Podgląd"
-                            className="rounded border"
-                            style={{ maxHeight: 120, objectFit: 'cover' }}
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-danger ms-2"
-                            onClick={() => {
-                              setImageFile(null);
-                              setImagePreview(null);
-                              setForm({ ...form, image_url: '' });
-                            }}
-                          >
-                            Usuń zdjęcie
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="col-12">
-                      <button type="submit" className="btn btn-success" disabled={submitting}>
-                        {submitting ? 'Zapisywanie...' : (editItem ? 'Zapisz zmiany' : 'Dodaj')}
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          <div className="table-responsive">
-            <table className="table table-striped">
-              <thead>
-                <tr>
-                  <th>Nazwa</th>
-                  <th>Kategoria</th>
-                  <th>Cena</th>
-                  <th>Dostępne</th>
-                  <th>Akcje</th>
-                </tr>
-              </thead>
-              <tbody>
-                {menuItems.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.name}</td>
-                    <td>{item.category}</td>
-                    <td>{item.price.toFixed(2)} zł</td>
-                    <td>
-                      <span
-                        className={`badge bg-${item.is_available ? 'success' : 'secondary'}`}
-                      >
-                        {item.is_available ? 'Tak' : 'Nie'}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-outline-primary btn-sm me-1"
-                        onClick={() => handleEdit(item)}
-                      >
-                        Edytuj
-                      </button>
-                      <button
-                        className="btn btn-outline-info btn-sm me-1"
-                        onClick={() => openRecipeModal(item)}
-                      >
-                        Receptura
-                      </button>
-                      <button
-                        className="btn btn-outline-warning btn-sm me-1"
-                        onClick={() =>
-                          handleToggleAvailability(item.id, item.is_available)
-                        }
-                      >
-                        {item.is_available ? 'Ukryj' : 'Pokaż'}
-                      </button>
-                      <button
-                        className="btn btn-outline-danger btn-sm"
-                        onClick={() => handleDelete(item.id)}
-                      >
-                        Usuń
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <AdminMenuTab
+          menuItems={menuItems}
+          onToggleAvailability={handleToggleAvailability}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onSave={handleSaveMenuItem}
+          showForm={showForm}
+          setShowForm={setShowForm}
+          editItem={editItem}
+          form={form}
+          setForm={setForm}
+          imageFile={imageFile}
+          imagePreview={imagePreview}
+          submitting={submitting}
+          handleImageChange={handleImageChange}
+          removeImage={removeImage}
+          resetForm={resetForm}
+          recipeModal={recipeModal}
+          recipeIngredients={recipeIngredients}
+          allIngredients={allIngredients}
+          recipeLoading={recipeLoading}
+          newIngredientId={newIngredientId}
+          newIngredientQty={newIngredientQty}
+          openRecipeModal={openRecipeModal}
+          closeRecipeModal={closeRecipeModal}
+          setNewIngredientId={setNewIngredientId}
+          setNewIngredientQty={setNewIngredientQty}
+          onAddIngredient={handleAddIngredient}
+          onDeleteIngredient={handleDeleteIngredient}
+        />
       )}
 
-      {/* ──────── Users tab ──────── */}
       {tab === 'users' && (
-        <div className="table-responsive">
-          <table className="table table-striped">
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Nazwa</th>
-                <th>Rola</th>
-                <th>Aktywny</th>
-                <th>Zmień rolę</th>
-              </tr>
-            </thead>
-            <tbody>
-              {profiles.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.email}</td>
-                  <td>{p.full_name || '—'}</td>
-                  <td>
-                    <span className="badge bg-info">{p.role}</span>
-                  </td>
-                  <td>
-                    <span
-                      className={`badge bg-${p.is_active ? 'success' : 'danger'}`}
-                    >
-                      {p.is_active ? 'Tak' : 'Nie'}
-                    </span>
-                  </td>
-                  <td>
-                    <select
-                      className="form-select form-select-sm"
-                      style={{ width: 140 }}
-                      value={p.role}
-                      onChange={(e) =>
-                        handleRoleChange(p.id, e.target.value)
-                      }
-                    >
-                      <option value="user">user</option>
-                      <option value="kitchen">kitchen</option>
-                      <option value="courier">courier</option>
-                      <option value="admin">admin</option>
-                    </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* ──────── Recipe modal ──────── */}
-      {recipeModal && (
-        <div
-          className="modal d-block"
-          tabIndex={-1}
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-          onClick={closeRecipeModal}
-        >
-          <div
-            className="modal-dialog modal-lg modal-dialog-centered"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
-                  Receptura: {recipeModal.name}
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={closeRecipeModal}
-                />
-              </div>
-              <div className="modal-body">
-                {recipeLoading ? (
-                  <div className="text-center py-3">
-                    <div className="spinner-border" role="status" />
-                  </div>
-                ) : (
-                  <>
-                    {/* Existing ingredients */}
-                    {recipeIngredients.length === 0 ? (
-                      <p className="text-muted">
-                        Brak składników w recepturze.
-                      </p>
-                    ) : (
-                      <table className="table table-sm mb-4">
-                        <thead>
-                          <tr>
-                            <th>Składnik</th>
-                            <th>Ilość</th>
-                            <th>Jednostka</th>
-                            <th />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {recipeIngredients.map((ri) => (
-                            <tr key={ri.id}>
-                              <td>{ri.ingredient?.name || '—'}</td>
-                              <td>{ri.quantity_needed}</td>
-                              <td>{ri.ingredient?.unit || ''}</td>
-                              <td>
-                                <button
-                                  className="btn btn-outline-danger btn-sm py-0"
-                                  onClick={() =>
-                                    handleDeleteIngredient(ri.id)
-                                  }
-                                >
-                                  ✕
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-
-                    <hr />
-                    <h6>Dodaj składnik</h6>
-                    <div className="row g-2 align-items-end">
-                      <div className="col-md-6">
-                        <select
-                          className="form-select form-select-sm"
-                          value={newIngredientId}
-                          onChange={(e) =>
-                            setNewIngredientId(e.target.value)
-                          }
-                        >
-                          <option value="">— Wybierz składnik —</option>
-                          {allIngredients.map((ing) => (
-                            <option key={ing.id} value={ing.id}>
-                              {ing.name} ({ing.unit || '—'})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-md-3">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="form-control form-control-sm"
-                          placeholder="Ilość"
-                          value={newIngredientQty}
-                          onChange={(e) =>
-                            setNewIngredientQty(e.target.value)
-                          }
-                        />
-                      </div>
-                      <div className="col-md-3">
-                        <button
-                          className="btn btn-success btn-sm w-100"
-                          disabled={
-                            !newIngredientId || !newIngredientQty
-                          }
-                          onClick={handleAddIngredient}
-                        >
-                          Dodaj
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <AdminUsersTab
+          profiles={profiles}
+          onRoleChange={handleRoleChange}
+        />
       )}
     </div>
   );
