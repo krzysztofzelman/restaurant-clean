@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, startTransition } from 'react';
 import { getAllOrders } from '../services/api';
 import type { OrderWithRelations } from '../lib/database.types';
 
@@ -25,25 +25,27 @@ export default function useOrders(intervalMs: number = 0): UseOrdersResult {
   const initializedRef = useRef(false);
 
   const refresh = useCallback(async () => {
-    setError('');
+    startTransition(() => setError(''));
     try {
       const data = await getAllOrders();
-      setOrders(data);
+      startTransition(() => {
+        setOrders(data);
 
-      // Zliczanie nowych zamówień (dla powiadomień)
-      if (initializedRef.current) {
-        const currentCount = data.length;
-        if (currentCount > lastCountRef.current) {
-          const diff = currentCount - lastCountRef.current;
-          setNewOrdersCount((prev) => prev + diff);
+        // Zliczanie nowych zamówień (dla powiadomień)
+        if (initializedRef.current) {
+          const currentCount = data.length;
+          if (currentCount > lastCountRef.current) {
+            const diff = currentCount - lastCountRef.current;
+            setNewOrdersCount((prev) => prev + diff);
+          }
         }
-      }
-      lastCountRef.current = data.length;
-      initializedRef.current = true;
+        lastCountRef.current = data.length;
+        initializedRef.current = true;
+      });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      startTransition(() => setError(err instanceof Error ? err.message : String(err)));
     } finally {
-      setLoading(false);
+      startTransition(() => setLoading(false));
     }
   }, []);
 

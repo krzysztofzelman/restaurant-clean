@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.order import Order
 from app.models.user import User
 from app.services import payment as payment_service
+from app.services.payment import _mark_event_processed, _is_event_processed
 
 router = APIRouter(prefix="/api/payment", tags=["payment"])
 
@@ -45,6 +46,10 @@ async def webhook(request: Request):
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
     if order_id:
+        # Idempotency check — skip if already processed
+        if _is_event_processed(order_id):
+            return {"received": True, "duplicate": True}
+
         from app.database import SessionLocal
 
         db = SessionLocal()
@@ -57,6 +62,7 @@ async def webhook(request: Request):
             if order:
                 order.payment_status = "paid"
                 db.commit()
+                _mark_event_processed(order_id)
         finally:
             db.close()
 

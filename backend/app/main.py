@@ -5,20 +5,27 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.api import auth_router, chat_router, menu_router, order_router, payment_router, reservation_router, upload_router, warehouse_router
 from app.config import settings
 from app.database import SessionLocal
+from app.limiter import limiter
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Seed test users on first startup."""
+    """Seed test users only on first startup (when users table is empty)."""
     db = SessionLocal()
     try:
-        from app.seed import seed_users
-
-        seed_users(db)
+        from sqlalchemy import text
+        result = db.execute(text("SELECT COUNT(*) FROM users"))
+        count = result.scalar()
+        if count == 0:
+            from app.seed import seed_users
+            seed_users(db)
     finally:
         db.close()
     yield
@@ -39,6 +46,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # Routers
 app.include_router(auth_router)

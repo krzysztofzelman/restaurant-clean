@@ -1,6 +1,8 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -25,8 +27,12 @@ router = APIRouter(prefix="/api/warehouse", tags=["warehouse"])
 
 
 @router.get("/ingredients", response_model=list[IngredientResponse])
-def list_ingredients(db: Session = Depends(get_db)):
-    stmt = select(Ingredient).order_by(Ingredient.name)
+def list_ingredients(
+    db: Session = Depends(get_db),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+):
+    stmt = select(Ingredient).order_by(Ingredient.name).offset(skip).limit(limit)
     return list(db.execute(stmt).scalars().all())
 
 

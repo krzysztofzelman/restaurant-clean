@@ -45,8 +45,8 @@ def seed_users(db: Session) -> None:
     for user in TEST_USERS:
         hashed = bcrypt.hashpw(user["password"].encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         stmt = text("""
-            INSERT INTO users (id, email, password_hash, full_name, role)
-            VALUES (:id, :email, :password_hash, :full_name, :role)
+            INSERT INTO users (id, email, password_hash, full_name, role, is_active)
+            VALUES (:id, :email, :password_hash, :full_name, :role, :is_active)
             ON CONFLICT (email) DO UPDATE SET
                 password_hash = EXCLUDED.password_hash,
                 full_name = EXCLUDED.full_name,
@@ -60,6 +60,7 @@ def seed_users(db: Session) -> None:
                 "password_hash": hashed,
                 "full_name": user["full_name"],
                 "role": user["role"],
+                "is_active": True,
             },
         )
     db.commit()

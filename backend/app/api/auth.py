@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -8,7 +8,6 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
-    RefreshRequest,
     RegisterRequest,
     RoleUpdateRequest,
     TokenResponse,
@@ -23,8 +22,35 @@ from app.services.auth import (
     get_user_by_id,
     hash_password,
 )
+from app.config import settings
+from app.limiter import limiter
+
+REFRESH_COOKIE_KEY = "restaurant_refresh_token"
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    """Set refresh token as httpOnly, Secure, SameSite=Strict cookie."""
+    response.set_cookie(
+        key=REFRESH_COOKIE_KEY,
+        value=token,
+        httponly=True,
+        samesite="strict",
+        secure=False,  # set True in production with HTTPS
+        max_age=settings.refresh_token_expire_days * 86400,
+        path="/api/auth",
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=REFRESH_COOKIE_KEY,
+        path="/api/auth",
+        httponly=True,
+        samesite="strict",
+        secure=False,
+    )
 
 
 def _get_current_user(
@@ -57,7 +83,8 @@ def require_role(*roles: str):
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
-def register(body: RegisterRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def register(body: RegisterRequest, request: Request, db: Session = Depends(get_db)):
     if len(body.password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     existing = get_user_by_email(db, body.email)
@@ -78,31 +105,56 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(body: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login(body: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     user = authenticate_user(db, body.email, body.password)
     if user is None:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    return TokenResponse(
-        access_token=create_access_token(user.id, user.role),
-        refresh_token=create_refresh_token(user.id),
-    )
+    access_token = create_access_token(user.id, user.role)
+    refresh_token = create_refresh_token(user.id)
+    _set_refresh_cookie(response, refresh_token)
+
+    return TokenResponse(access_token=access_token)
 
 
 @router.post("/refresh", response_model=TokenResponse)
-def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
-    payload = decode_token(body.refresh_token)
+@limiter.limit("10/minute")
+def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
+    """Read refresh token from httpOnly cookie, return new tokens."""
+    refresh_token = request.cookies.get(REFRESH_COOKIE_KEY)
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+
+    payload = decode_token(refresh_token)
     if payload is None or payload.get("type") != "refresh":
+        _clear_refresh_cookie(response)
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
-    user = get_user_by_id(db, uuid.UUID(payload["sub"]))
+    try:
+        user_id = uuid.UUID(payload["sub"])
+    except (KeyError, ValueError):
+        _clear_refresh_cookie(response)
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    user = get_user_by_id(db, user_id)
     if user is None or not user.is_active:
+        _clear_refresh_cookie(response)
         raise HTTPException(status_code=401, detail="User not found or inactive")
 
-    return TokenResponse(
-        access_token=create_access_token(user.id, user.role),
-        refresh_token=create_refresh_token(user.id),
-    )
+    # Rotate: issue new refresh token, invalidate old one (via cookie replacement)
+    new_access = create_access_token(user.id, user.role)
+    new_refresh = create_refresh_token(user.id)
+    _set_refresh_cookie(response, new_refresh)
+
+    return TokenResponse(access_token=new_access)
+
+
+@router.post("/logout")
+def logout(response: Response):
+    """Clear the refresh cookie."""
+    _clear_refresh_cookie(response)
+    return {"ok": True}
 
 
 @router.get("/me", response_model=UserResponse)

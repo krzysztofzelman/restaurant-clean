@@ -14,8 +14,10 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Deployment scripts (contain SSH passwords)
-deploy.py
+# Qwen AI tool configurations
+.qwen/
+
+# Deployment scripts (deprecated — no longer contain hardcoded credentials)
 deploy_ssl.py
 fix_deploy.py
 fix_nginx.py

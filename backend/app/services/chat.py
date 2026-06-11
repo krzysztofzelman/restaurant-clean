@@ -23,7 +23,7 @@ Bądź pomocny, uprzejmy i odpowiadaj po polsku."""
 
 def _get_llm():
     """Initialize the LLM (DeepSeek via OpenAI-compatible API)."""
-    if settings.deepseek_api_key and settings.deepseek_api_key != "sk_placeholder":
+    if settings.deepseek_api_key:
         return init_chat_model(
             "deepseek-chat",
             model_provider="openai",

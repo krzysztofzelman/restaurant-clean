@@ -8,30 +8,30 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
-    # Auth JWT
-    secret_key: str = "dev-secret-key-change-in-production"
+    # Auth JWT — MUST be set via env/SECRET_KEY
+    secret_key: str
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
     algorithm: str = "HS256"
 
-    # Stripe
-    stripe_secret_key: str = "sk_test_placeholder"
-    stripe_webhook_secret: str = "whsec_placeholder"
+    # Stripe — MUST be set via env
+    stripe_secret_key: str
+    stripe_webhook_secret: str
 
-    # DeepSeek AI
-    deepseek_api_key: str = "sk_placeholder"
+    # DeepSeek AI — optional, service degrades gracefully when absent
+    deepseek_api_key: str = ""
 
-    # SMTP (password reset emails)
+    # SMTP (password reset emails) — optional
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
 
-    # Frontend URL for CORS (set to production URL when deploying)
+    # Frontend URL for CORS
     frontend_url: str = "http://localhost:5173"
 
     # App
-    debug: bool = True
+    debug: bool = False
     allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}

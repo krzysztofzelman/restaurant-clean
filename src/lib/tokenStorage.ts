@@ -1,43 +1,22 @@
-const ACCESS_KEY = 'restaurant_access_token';
-const REFRESH_KEY = 'restaurant_refresh_token';
+/** In-memory access token storage (not persisted to localStorage — XSS-safe). */
+
+let _accessToken: string | null = null;
 
 export function getAccessToken(): string | null {
-  try {
-    return localStorage.getItem(ACCESS_KEY);
-  } catch {
-    return null;
-  }
+  return _accessToken;
 }
 
-export function getRefreshToken(): string | null {
-  try {
-    return localStorage.getItem(REFRESH_KEY);
-  } catch {
-    return null;
-  }
+export function setAccessToken(token: string | null): void {
+  _accessToken = token;
 }
 
-export function setTokens(accessToken: string, refreshToken: string): void {
-  try {
-    localStorage.setItem(ACCESS_KEY, accessToken);
-    localStorage.setItem(REFRESH_KEY, refreshToken);
-  } catch {
-    // localStorage unavailable
-  }
-}
-
-export function clearTokens(): void {
-  try {
-    localStorage.removeItem(ACCESS_KEY);
-    localStorage.removeItem(REFRESH_KEY);
-  } catch {
-    // localStorage unavailable
-  }
+export function clearAccessToken(): void {
+  _accessToken = null;
 }
 
 /** Decode JWT payload without signature verification (client-side only). */
 export function getTokenPayload(): Record<string, unknown> | null {
-  const token = getAccessToken();
+  const token = _accessToken;
   if (!token) return null;
   try {
     const base64 = token.split('.')[1];

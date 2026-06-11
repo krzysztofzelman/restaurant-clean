@@ -1,3 +1,4 @@
+import time
 import uuid
 
 import stripe
@@ -8,6 +9,27 @@ from app.config import settings
 from app.models.order import Order
 
 stripe.api_key = settings.stripe_secret_key
+
+# In-memory idempotency store for processed webhook events (order IDs).
+# TTL-based: entries expire after 24 hours.
+# For multi-worker deployments, replace with Redis.
+_processed_events: dict[str, float] = {}
+_EVENT_TTL = 86400  # 24 hours
+
+
+def _is_event_processed(order_id: str) -> bool:
+    """Check if a webhook event for this order was already processed."""
+    now = time.time()
+    # Clean stale entries lazily
+    stale = [k for k, ts in _processed_events.items() if now - ts > _EVENT_TTL]
+    for k in stale:
+        _processed_events.pop(k, None)
+    return order_id in _processed_events
+
+
+def _mark_event_processed(order_id: str) -> None:
+    """Mark a webhook event as processed."""
+    _processed_events[order_id] = time.time()
 
 
 def create_payment_intent(order_id: uuid.UUID, db: Session) -> dict:

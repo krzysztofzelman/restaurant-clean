@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt as pyjwt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -27,7 +27,7 @@ def create_access_token(user_id: uuid.UUID, role: str) -> str:
         "iat": now,
         "exp": now + timedelta(minutes=settings.access_token_expire_minutes),
     }
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+    return pyjwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
 def create_refresh_token(user_id: uuid.UUID) -> str:
@@ -38,16 +38,16 @@ def create_refresh_token(user_id: uuid.UUID) -> str:
         "iat": now,
         "exp": now + timedelta(days=settings.refresh_token_expire_days),
     }
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+    return pyjwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
 def decode_token(token: str) -> dict | None:
     """Decode and validate a JWT token. Returns payload or None."""
     try:
-        return jwt.decode(
+        return pyjwt.decode(
             token, settings.secret_key, algorithms=[settings.algorithm]
         )
-    except JWTError:
+    except pyjwt.InvalidTokenError:
         return None
 
 

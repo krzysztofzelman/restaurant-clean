@@ -42,7 +42,6 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://restaurant:restaurant_dev@postgres:5432/restaurant}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,7 +59,6 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://restaurant:restaurant_dev@postgres:5432/restaurant}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
     depends_on:
       postgres:
         condition: service_healthy
@@ -78,7 +76,6 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://restaurant:restaurant_dev@postgres:5432/restaurant}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
     depends_on:
       postgres:
         condition: service_healthy

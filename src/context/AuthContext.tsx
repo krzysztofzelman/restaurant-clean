@@ -1,11 +1,16 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  startTransition,
+  type ReactNode,
+} from 'react';
 import { apiRequest } from '../lib/apiClient';
 import {
-  getAccessToken,
-  getRefreshToken,
-  setTokens,
-  clearTokens,
-  getUserIdFromToken,
+  setAccessToken,
+  clearAccessToken,
   getTokenPayload,
 } from '../lib/tokenStorage';
 import type { Profile } from '../lib/database.types';
@@ -32,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function loadProfile(_userId: string) {
+  async function loadProfile() {
     try {
       const raw = await apiRequest<Record<string, unknown>>('/api/auth/me');
       const p: Profile = {
@@ -46,10 +51,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(p);
     } catch {
       setProfile(null);
-    } finally {
-      setLoading(false);
     }
   }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function initSession() {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/auth/refresh`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+        if (!res.ok) {
+          clearAccessToken();
+          if (!cancelled) startTransition(() => setLoading(false));
+          return;
+        }
+        const data = (await res.json()) as { access_token: string };
+        setAccessToken(data.access_token);
+
+        const payload = getTokenPayload();
+        const userId = payload?.sub;
+        if (userId && !cancelled) {
+          const authUser: AuthUser = {
+            id: userId as string,
+            email: (payload?.email as string) ?? null,
+          };
+          startTransition(() => setUser(authUser));
+          await loadProfile();
+        }
+      } catch {
+        clearAccessToken();
+      } finally {
+        if (!cancelled) startTransition(() => setLoading(false));
+      }
+    }
+
+    initSession();
+    return () => { cancelled = true; };
+  }, []);
 
   async function signIn(email: string, password: string) {
     const data = await apiRequest<Record<string, unknown>>('/api/auth/login', {
@@ -58,16 +103,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const accessToken = data.access_token as string;
-    const refreshToken = data.refresh_token as string;
-
     if (!accessToken) {
       throw new Error('No access token received');
     }
 
-    setTokens(accessToken, refreshToken || '');
+    setAccessToken(accessToken);
 
     const payload = getTokenPayload();
-    const userId = payload?.sub || getUserIdFromToken();
+    const userId = payload?.sub;
     const userEmail = (payload?.email as string) ?? email;
 
     const authUser: AuthUser = {
@@ -75,9 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: userEmail,
     };
     setUser(authUser);
-
-    // Load profile in the background
-    loadProfile(authUser.id).catch(() => {});
+    await loadProfile();
 
     return data;
   }
@@ -91,83 +132,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
-    clearTokens();
+    try {
+      await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/auth/logout`,
+        { method: 'POST', credentials: 'include' },
+      );
+    } catch {
+      // ignore network errors on logout
+    }
+    clearAccessToken();
     setUser(null);
     setProfile(null);
     setLoading(false);
   }
 
-  useEffect(() => {
-    // Check for existing valid session
-    const token = getAccessToken();
-    if (token) {
-      const payload = getTokenPayload();
-      if (payload && payload.exp && (payload.exp as number) * 1000 > Date.now()) {
-        const userId = payload.sub;
-        const authUser: AuthUser = {
-          id: userId as string,
-          email: (payload.email as string) ?? null,
-        };
-        setUser(authUser);
-        loadProfile(authUser.id);
-        return;
-      } else {
-        // Token expired, try to refresh
-        const refreshToken = getRefreshToken();
-        if (refreshToken) {
-          apiRequest<Record<string, unknown>>('/api/auth/refresh', {
-            method: 'POST',
-            body: JSON.stringify({ refresh_token: refreshToken }),
-          })
-            .then((data) => {
-              const newAccess = data.access_token as string;
-              const newRefresh = (data.refresh_token as string) || refreshToken;
-              setTokens(newAccess, newRefresh);
-
-              const payload = getTokenPayload();
-              const userId = payload?.sub;
-              const authUser: AuthUser = {
-                id: userId as string,
-                email: (payload?.email as string) ?? null,
-              };
-              setUser(authUser);
-              return loadProfile(authUser.id);
-            })
-            .catch(() => {
-              // Refresh failed — clear everything
-              clearTokens();
-              setUser(null);
-              setProfile(null);
-              setLoading(false);
-            });
-        } else {
-          clearTokens();
-          setLoading(false);
-        }
-      }
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) {
       try {
-        const raw = await apiRequest<Record<string, unknown>>('/api/auth/me');
-        const p: Profile = {
-          id: raw.id as string,
-          email: (raw.email as string) ?? null,
-          full_name: (raw.full_name as string) ?? null,
-          role: raw.role as Profile['role'],
-          is_active: raw.is_active as boolean,
-          created_at: raw.created_at as string,
-        };
-        setProfile(p);
+        await loadProfile();
       } catch {
         // ignore
       }
     }
-  };
+  }, [user]);
 
   return (
     <AuthContext.Provider

@@ -2,7 +2,7 @@ import os
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.auth import _get_current_user, require_role

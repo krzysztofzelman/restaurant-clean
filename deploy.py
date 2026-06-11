@@ -8,17 +8,30 @@ Run this AFTER pushing changes to GitHub:
 Connects via SSH (password), sets up Docker, builds & deploys everything.
 """
 
+import os
 import paramiko
 import time
+import getpass
+import secrets
+import string
 
-VPS_HOST = "31.3.218.196"
-VPS_PORT = 2022
-VPS_USER = "root"
-VPS_PASS = "QRS1bVkXeaYchxcx"
+
+def _req_env(key: str, prompt: str) -> str:
+    """Read from env or prompt interactively."""
+    val = os.environ.get(key)
+    if val:
+        return val
+    return getpass.getpass(prompt).strip()
+
+
+VPS_HOST = _req_env("VPS_HOST", "VPS host/IP: ")
+VPS_USER = os.environ.get("VPS_USER", "root")
+VPS_PORT = int(os.environ.get("VPS_PORT", "2022"))
+VPS_PASS = _req_env("VPS_PASS", f"SSH password for {VPS_USER}@{VPS_HOST}: ")
 
 REPO_URL = "https://github.com/krzysztofzelman/restaurant-clean.git"
 PROJECT_DIR = "/root/restaurant-clean"
-DOMAIN = "31.3.218.196"  # No domain yet, using IP
+DOMAIN = os.environ.get("DOMAIN", VPS_HOST)
 
 
 class SSHClient:
@@ -102,20 +115,30 @@ def main():
 
     # 3. Create production .env
     step("3. Create production .env")
+
+    auto_secret = os.environ.get(
+        "DEPLOY_SECRET_KEY",
+        "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(48)),
+    )
+    auto_stripe_secret = os.environ.get("STRIPE_SECRET_KEY", "sk_live_placeholder")
+    auto_stripe_webhook = os.environ.get("STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
+    auto_deepseek = os.environ.get("DEEPSEEK_API_KEY", "")
+    auto_stripe_pub = os.environ.get("VITE_STRIPE_PUBLISHABLE_KEY", "pk_live_xxxxxxxxxxxxxxx")
+
     env_content = f"""DATABASE_URL=postgresql://restaurant:restaurant_prod@postgres:5432/restaurant
 REDIS_URL=redis://redis:6379/0
-SECRET_KEY=prod-secret-key-restaurant-2024-change-me
+SECRET_KEY={auto_secret}
 ACCESS_TOKEN_EXPIRE_MINUTES=15
 REFRESH_TOKEN_EXPIRE_DAYS=7
-STRIPE_SECRET_KEY=sk_test_placeholder
-STRIPE_WEBHOOK_SECRET=whsec_placeholder
-DEEPSEEK_API_KEY=sk_placeholder
+STRIPE_SECRET_KEY={auto_stripe_secret}
+STRIPE_WEBHOOK_SECRET={auto_stripe_webhook}
+DEEPSEEK_API_KEY={auto_deepseek}
 SMTP_HOST=
 SMTP_PORT=587
 SMTP_USER=
 SMTP_PASSWORD=
 VITE_API_URL=http://{DOMAIN}
-VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxx
+VITE_STRIPE_PUBLISHABLE_KEY={auto_stripe_pub}
 FRONTEND_URL=http://{DOMAIN}
 """
     ssh.upload_str(f"{PROJECT_DIR}/.env", env_content)

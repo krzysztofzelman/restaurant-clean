@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, startTransition } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { getAllReservations } from '../../services/api';
 import ReservationList from '../../components/admin/ReservationList';
@@ -28,15 +28,15 @@ export default function ReservationsAdmin() {
   const [modalOpen, setModalOpen] = useState(false);
 
   const fetchReservations = useCallback(async () => {
-    setLoading(true);
+    startTransition(() => setLoading(true));
     try {
       const data = await getAllReservations();
-      setReservations(data);
+      startTransition(() => setReservations(data));
     } catch (err) {
       showToast('Błąd ładowania rezerwacji', 'danger');
       console.error(err);
     } finally {
-      setLoading(false);
+      startTransition(() => setLoading(false));
     }
   }, [showToast]);
 
