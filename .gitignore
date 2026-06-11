@@ -13,3 +13,14 @@ dist
 __pycache__/
 *.pyc
 *.pyo
+
+# Deployment scripts (contain SSH passwords)
+deploy.py
+deploy_ssl.py
+fix_deploy.py
+fix_nginx.py
+fix_ports.py
+test_deploy.py
+test_final.py
+test_chat.py
+debug_nginx.py

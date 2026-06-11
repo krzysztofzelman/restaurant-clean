@@ -11,6 +11,8 @@ Nowoczesna aplikacja webowa dla restauracji, wyposażona w **Wirtualnego Kelnera
 
 Aplikacja działa w modelu **self-hosted** na własnym VPS: Python/FastAPI + PostgreSQL + Redis + Celery zamiast zewnętrznych usług (Supabase). Pełna kontrola nad danymi i infrastrukturą.
 
+> **🌐 Produkcja:** [https://restauracja.kzelman.pl](https://restauracja.kzelman.pl) — SSL (Let's Encrypt), Nginx reverse proxy, 5 kontenerów Docker
+
 ---
 
 ## ✨ Funkcjonalności
@@ -173,13 +175,13 @@ SMTP_PASSWORD=password
 
 ## 🌐 Wdrożenie na VPS
 
-Wymagany VPS z Docker i domeną (lub publicznym IP).
+Aplikacja działa na **https://restauracja.kzelman.pl** — VPS 31.3.218.196.
 
 ### 1. Przygotowanie VPS
 
 ```bash
 # Połącz się przez SSH
-ssh root@twoj-vps-ip
+ssh root@twoj-vps-ip -p 2022
 
 # Zainstaluj Docker
 apt update && apt install -y docker.io docker-compose-v2
@@ -200,41 +202,51 @@ cp .env.example .env
 docker compose up -d
 ```
 
-### 3. Nginx + SSL (zalecane)
+### 3. Nginx + SSL
+
+Przykładowa konfiguracja (użyta na produkcji dla **restauracja.kzelman.pl**):
 
 ```nginx
+# HTTP → HTTPS redirect
 server {
     listen 80;
-    server_name twoja-domena.pl;
-    return 301 https://$server_name$request_uri;
+    server_name restauracja.kzelman.pl;
+    return 301 https://$host$request_uri;
 }
 
+# HTTPS
 server {
-    listen 443 ssl;
-    server_name twoja-domena.pl;
+    listen 443 ssl http2;
+    server_name restauracja.kzelman.pl;
 
-    ssl_certificate /etc/letsencrypt/live/twoja-domena.pl/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/twoja-domena.pl/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/restauracja/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/restauracja/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
 
-    # Backend API
     location /api/ {
-        proxy_pass http://localhost:8000;
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 90s;
+    }
+
+    location /images/ {
+        proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
 
-    # Obrazy menu
-    location /images/ {
-        proxy_pass http://localhost:8000;
-    }
-
-    # Frontend (zbudowany plik statyczny)
     location / {
-        root /var/www/restaurant-clean/dist;
+        root /var/www/restaurant/dist;
+        index index.html;
         try_files $uri $uri/ /index.html;
     }
 }
 ```
+
+Certyfikat SSL uzyskany przez Let's Encrypt (certbot --webroot), auto-odnowienie.
 
 ### 4. Automatyczny restart
 
