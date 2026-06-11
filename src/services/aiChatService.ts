@@ -1,53 +1,57 @@
-import { supabase } from '../lib/supabaseClient';
-import type { AIResponse, AIChatRequest } from '../types/ai';
+import { apiRequest } from '../lib/apiClient';
+import type { AIResponse } from '../types/ai';
 
-const EDGE_FUNCTION = 'chat-ai';
+interface ChatResponse {
+  conversation_id: string;
+  reply: string;
+  messages: Array<{ role: string; content: string }>;
+}
 
 /**
  * AI Chat Service
  *
- * Sends a message to the AI and returns the response.
+ * Sends a message to the AI assistant via the backend API.
+ * The backend manages conversation history in the database — the frontend
+ * only needs to pass the conversation_id for follow-up messages.
+ *
  * @param message - User's message
- * @param conversationHistory - Previous messages for context
- * @param userId - Optional authenticated user ID
+ * @param _conversationHistory - Ignored (history is handled server-side). Kept for API compatibility.
+ * @param _userId - Ignored (auth is handled via JWT). Kept for API compatibility.
  */
 export async function sendChatMessage(
   message: string,
-  conversationHistory: AIChatRequest['conversationHistory'],
-  userId?: string,
+  _conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>,
+  _userId?: string,
 ): Promise<AIResponse> {
-  const body: AIChatRequest = {
-    message,
-    userId: userId || undefined,
-    conversationHistory,
-  };
+  // Try to restore conversation_id from localStorage for continuation
+  let conversationId: string | undefined;
+  try {
+    const saved = localStorage.getItem('ai-conversation-id');
+    if (saved) {
+      conversationId = saved;
+    }
+  } catch {
+    // localStorage unavailable — ignore
+  }
 
-  const { data, error } = await supabase.functions.invoke(EDGE_FUNCTION, {
-    body,
+  const body: Record<string, unknown> = { message };
+  if (conversationId) {
+    body.conversation_id = conversationId;
+  }
+
+  const data = await apiRequest<ChatResponse>('/api/chat', {
+    method: 'POST',
+    body: JSON.stringify(body),
   });
 
-  if (error) {
-    console.error('[aiChatService] Edge function error:', error);
-    throw new Error(
-      error.message || 'Nie udało się połączyć z asystentem. Spróbuj ponownie.',
-    );
+  // Save conversation_id for next message
+  try {
+    localStorage.setItem('ai-conversation-id', data.conversation_id);
+  } catch {
+    // ignore
   }
 
-  // Edge function może zwrócić { reply, action } zamiast { reply, actions }
-  // Konwertuj na ujednolicony format z tablicą actions
-  if (data && data.reply && data.action && !data.actions) {
-    return {
-      reply: data.reply,
-      action: data.action,
-      actions: [data.action],
-    };
-  }
-
-  const result = data as AIResponse;
-
-  if (!result || !result.reply) {
-    throw new Error('Otrzymano pustą odpowiedź od asystenta.');
-  }
-
-  return result;
+  return {
+    reply: data.reply,
+  };
 }

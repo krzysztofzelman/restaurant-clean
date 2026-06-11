@@ -1,88 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
+import { Link } from 'react-router-dom';
 
 export default function UpdatePasswordPage() {
-  const navigate = useNavigate();
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [ready, setReady] = useState(false);
-  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (event) => {
-        if (event === 'PASSWORD_RECOVERY') {
-          setReady(true);
-        }
-      },
-    );
-
-    return () => {
-      listener?.subscription.unsubscribe();
-      if (redirectTimer.current) clearTimeout(redirectTimer.current);
-    };
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    if (password.length < 6) {
-      setError('Hasło musi mieć co najmniej 6 znaków.');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError('Hasła nie są zgodne.');
-      return;
-    }
-
-    setLoading(true);
-
-    const { error: updateError } = await supabase.auth.updateUser({
-      password,
-    });
-
-    setLoading(false);
-
-    if (updateError) {
-      setError(updateError.message);
-    } else {
-      setSuccess(
-        'Hasło zostało zmienione. Za chwilę nastąpi przekierowanie...',
-      );
-      redirectTimer.current = setTimeout(() => {
-        navigate('/login', { state: { passwordReset: true } });
-      }, 2000);
-    }
-  };
-
-  if (!ready) {
-    return (
-      <div
-        className="container d-flex justify-content-center align-items-center"
-        style={{ minHeight: '60vh' }}
-      >
-        <div className="text-center">
-          <div
-            className="spinner-border text-primary mb-3"
-            role="status"
-          >
-            <span className="visually-hidden">Ładowanie...</span>
-          </div>
-          <p className="text-muted">
-            Weryfikacja linku resetującego...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className="container d-flex justify-content-center align-items-center"
@@ -92,69 +10,29 @@ export default function UpdatePasswordPage() {
         className="card shadow-sm"
         style={{ maxWidth: 440, width: '100%' }}
       >
-        <div className="card-body p-4">
-          <h2 className="card-title text-center mb-4">
-            Ustaw nowe hasło
-          </h2>
-
-          {error && (
-            <div className="alert alert-danger" role="alert">
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="alert alert-success" role="alert">
-              {success}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            <div className="mb-3">
-              <label htmlFor="password" className="form-label">
-                Nowe hasło
-              </label>
-              <input
-                type="password"
-                className="form-control"
-                id="password"
-                placeholder="Minimum 6 znaków"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-            </div>
-
-            <div className="mb-3">
-              <label
-                htmlFor="confirmPassword"
-                className="form-label"
-              >
-                Potwierdź nowe hasło
-              </label>
-              <input
-                type="password"
-                className="form-control"
-                id="confirmPassword"
-                placeholder="Wpisz ponownie hasło"
-                value={confirmPassword}
-                onChange={(e) =>
-                  setConfirmPassword(e.target.value)
-                }
-                required
-                minLength={6}
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary w-100"
-              disabled={loading}
+        <div className="card-body text-center p-4">
+          <div className="mb-3 text-warning">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="48"
+              height="48"
+              fill="currentColor"
+              viewBox="0 0 16 16"
             >
-              {loading ? 'Zapisywanie...' : 'Zmień hasło'}
-            </button>
-          </form>
+              <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+              <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z" />
+            </svg>
+          </div>
+          <h2 className="mb-3">Aktualizacja hasła</h2>
+          <p className="text-muted mb-4">
+            Funkcja zmiany hasła przez link resetujący jest dostępna
+            wyłącznie w wersji Supabase. W wersji samodzielnie
+            hostowanej skontaktuj się z administratorem w celu zmiany
+            hasła.
+          </p>
+          <Link to="/login" className="btn btn-primary">
+            ← Wróć do logowania
+          </Link>
         </div>
       </div>
     </div>

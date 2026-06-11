@@ -1,14 +1,15 @@
 # 🍽️ Restauracja – Wirtualny Kelner AI
 
-[![Vercel](https://img.shields.io/badge/deploy-vercel-black?logo=vercel)](https://restaurant-clean-omega.vercel.app/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase)](https://supabase.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)](https://fastapi.tiangolo.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql)](https://www.postgresql.org)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](https://docs.docker.com/compose/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Nowoczesna aplikacja webowa dla restauracji, wyposażona w **Wirtualnego Kelnera AI** – czatbota opartego na DeepSeek, który zna prawdziwe menu, przyjmuje zamówienia i rezerwacje. Panel administracyjny umożliwia zarządzanie rezerwacjami, zamówieniami, magazynem i dostawami.
+Nowoczesna aplikacja webowa dla restauracji, wyposażona w **Wirtualnego Kelnera AI** – czatbota opartego na DeepSeek, który zna prawdziwe menu, przyjmuje zamówienia i rezerwacje.
 
-**🌐 Wersja live:** [restaurant-clean-omega.vercel.app](https://restaurant-clean-omega.vercel.app/)
+Aplikacja działa w modelu **self-hosted** na własnym VPS: Python/FastAPI + PostgreSQL + Redis + Celery zamiast zewnętrznych usług (Supabase). Pełna kontrola nad danymi i infrastrukturą.
 
 ---
 
@@ -16,118 +17,254 @@ Nowoczesna aplikacja webowa dla restauracji, wyposażona w **Wirtualnego Kelnera
 
 | Funkcja | Opis |
 |---------|------|
-| 🤖 **Wirtualny Kelner AI** | Czat z modelem DeepSeek – mówi po polsku, zna menu, doradza dania, przyjmuje rezerwacje |
-| 📋 **Menu online** | Pełna karta dań (38 pozycji w 6 kategoriach) z możliwością dodawania do koszyka |
+| 🤖 **Wirtualny Kelner AI** | Czat z modelem DeepSeek – mówi po polsku, zna menu, doradza dania, przyjmuje rezerwacje przez LangChain |
+| 📋 **Menu online** | Pełna karta dań z kategoriami, zdjęciami i możliwością dodawania do koszyka |
 | 🛒 **Koszyk i zamówienia** | Składanie zamówień online z płatnością przez Stripe |
-| 📅 **System rezerwacji** | Rezerwacja stolików przez czat AI lub panel – statusy: pending / confirmed / cancelled |
-| 👨‍🍳 **Panel kuchni** | Podgląd zamówień, zmiana statusu, powiadomienia dźwiękowe i push |
-| 📦 **Panel magazynu** | Zarządzanie składnikami, partiami i stanami magazynowymi |
-| 🚚 **Panel kuriera** | Przypisywanie i śledzenie dostaw |
-| 🛡️ **Panel admina** | Zarządzanie rezerwacjami (tabela + kalendarz), menu, użytkownikami, zamówieniami i recepturami |
-| 🔐 **Autoryzacja rolami** | Logowanie przez Supabase Auth – role: `admin`, `kitchen`, `courier`, `user` |
+| 📅 **System rezerwacji** | Rezerwacja stolików – statusy: pending → confirmed → cancelled |
+| 👨‍🍳 **Panel kuchni** | Podgląd zamówień, zmiana statusu (preparing → ready), powiadomienia |
+| 📦 **Panel magazynu** | Zarządzanie składnikami, partiami, stanami magazynowymi, recepturami i przychodami |
+| 🚚 **Panel kuriera** | Przypisywanie i śledzenie dostaw (ready → in_transit → delivered) |
+| 🛡️ **Panel admina** | Zarządzanie rezerwacjami (tabela + filtrowanie), menu, użytkownikami, zamówieniami i rolami |
+| 🔐 **Autoryzacja rolami** | JWT (bcrypt + PyJWT) – role: `admin`, `kitchen`, `courier`, `user` |
 | 📱 **Responsywność** | Bootstrap 5 – działa na desktopie, tablecie i telefonie |
 
 ---
 
-## 🧱 Tech Stack
+## 🧱 Stack technologiczny
 
-| Warstwa | Technologia |
-|---------|-------------|
-| **Frontend** | React 19, TypeScript 6, Vite 6 |
+### Backend (Python / FastAPI)
+
+| Składnik | Technologia |
+|----------|-------------|
+| **Framework** | FastAPI 0.115 (Python 3.12) |
+| **ORM** | SQLAlchemy 2.0 + Alembic (migracje) |
+| **Baza danych** | PostgreSQL 16 |
+| **Kolejka zadań** | Celery + Redis (wysyłka emaili, anulowanie zamówień) |
+| **Autoryzacja** | bcrypt (hasła) + PyJWT (tokeny access/refresh) |
+| **AI** | LangChain + DeepSeek (API OpenAI-compatible) |
+| **Płatności** | Stripe SDK (webhook do aktualizacji statusu) |
+| **Wysyłka emaili** | SMTP (potwierdzenia zamówień, statusy) |
+
+### Frontend (React / TypeScript)
+
+| Składnik | Technologia |
+|----------|-------------|
+| **Framework** | React 19, TypeScript 6, Vite 6 |
 | **Routing** | react-router-dom 7 |
 | **Stylowanie** | Bootstrap 5.3 |
-| **Backend / DB** | Supabase (PostgreSQL, Auth, Row Level Security, Storage) |
-| **Płatności** | Stripe (Checkout + Payment Intents) |
-| **AI / Czat** | DeepSeek API (OpenAI-kompatybilny) |
-| **Edge Functions** | Supabase Edge Functions (Deno / TypeScript) |
-| **Hosting** | Vercel (frontend) + Supabase (backend) |
-| **Jakość kodu** | ESLint, Prettier, TypeScript strict mode |
+| **HTTP** | Fetch API z `apiClient.ts` (JWT Bearer, automatyczne odświeżanie tokenów) |
+| **Płatności** | Stripe Elements (`@stripe/react-stripe-js`) |
+
+### Infrastruktura
+
+| Składnik | Technologia |
+|----------|-------------|
+| **Konteneryzacja** | Docker Compose (5 serwisów) |
+| **Serwer** | postgres:16, redis:7-alpine, backend (uvicorn), celery-worker, celery-beat |
+| **VPS** | Dowolny VPS z Docker (zalecane: 2 vCPU, 4 GB RAM, 40 GB SSD) |
+| **Reverse proxy** | Nginx + Let's Encrypt SSL (zalecane) |
 
 ---
 
-## 🚀 Uruchomienie lokalne
+## 🚀 Uruchomienie lokalne (Docker)
 
 ### Wymagania
 
-- Node.js ≥ 18
-- Konto [Supabase](https://supabase.com) (projekt z włączoną autoryzacją)
-- Klucz API [DeepSeek](https://platform.deepseek.com/) (dla czatu AI)
-- Konto [Stripe](https://stripe.com) (tryb testowy – opcjonalnie dla płatności)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- Git
+- Klucz API [DeepSeek](https://platform.deepseek.com/) (opcjonalnie – czat AI działa z fallbackiem)
+- Konto [Stripe](https://stripe.com) (tryb testowy – opcjonalnie)
 
 ### Krok po kroku
 
 ```bash
 # 1. Sklonuj repozytorium
-git clone https://github.com/twoja-nazwa/restaurant-clean.git
+git clone https://github.com/krzysztofzelman/restaurant-clean.git
 cd restaurant-clean
 
-# 2. Zainstaluj zależności
-npm install
-
-# 3. Skopiuj zmienne środowiskowe i uzupełnij je
+# 2. Skopiuj i uzupełnij zmienne środowiskowe
 cp .env.example .env
+# Edytuj .env – ustaw DEEPSEEK_API_KEY i klucze Stripe (opcjonalnie)
 
-# 4. Uruchom w trybie deweloperskim
+# 3. Uruchom wszystkie serwisy
+docker compose up -d
+
+# 4. Poczekaj aż baza będzie gotowa (~10s), backend uruchomi seed danych testowych
+#    Backend: http://localhost:8000
+#    Frontend (dev): http://localhost:5173
+#    Health check: http://localhost:8000/api/health
+
+# 5. Uruchom frontend (w osobnym terminalu)
+npm install
 npm run dev
 ```
 
-Aplikacja będzie dostępna pod adresem **http://localhost:5173**.
+### Konta testowe
 
-### Konfiguracja Supabase
+| Email | Hasło | Rola |
+|-------|-------|------|
+| `admin@restauracja.pl` | `admin123` | admin |
+| `kitchen@restauracja.pl` | `kitchen123` | kitchen |
+| `kurier@restauracja.pl` | `courier123` | courier |
+| `jan@example.com` | `user123` | user |
 
-1. Utwórz projekt w [Supabase Dashboard](https://supabase.com/dashboard)
-2. Otwórz **SQL Editor** i wykonaj skrypt `supabase-schema.sql` – tworzy wszystkie tabele, RLS, triggery i seed danych (menu, konta testowe)
-3. Wykonaj migrację: `supabase/migrations/20260515_add_ai_chat_tables.sql`
-4. Włącz **Authentication → Providers → Email**
-5. Skopiuj `Project URL` i `anon public key` z **Project Settings → API** do `.env`
+### Serwisy Docker
 
-### Konfiguracja Edge Functions
+| Serwis | Port | Opis |
+|--------|------|------|
+| `postgres` | 5432 | Baza danych PostgreSQL 16 |
+| `redis` | 6379 | Kolejka Celery + cache |
+| `backend` | 8000 | API FastAPI (uvicorn) |
+| `celery-worker` | – | Worker kolejki zadań |
+| `celery-beat` | – | Harmonogram (anulowanie nieopłaconych zamówień co 5 min) |
 
 ```bash
-# Zainstaluj Supabase CLI
-npm install -g supabase
+# Zatrzymanie
+docker compose down
 
-# Zaloguj się do projektu
-supabase login
-supabase link --project-ref twoj-projekt-ref
+# Zatrzymanie + usunięcie danych (uwaga!)
+docker compose down -v
 
-# Wdróż funkcję czatu AI
-supabase functions deploy chat-ai --no-verify-jwt
-
-# Wdróż funkcję płatności (opcjonalnie)
-supabase functions deploy create-payment-intent
-
-# Ustaw sekrety
-supabase secrets set DEEPSEEK_API_KEY=sk-twoj-klucz
-supabase secrets set STRIPE_SECRET_KEY=sk_test_twoj-klucz
+# Podgląd logów
+docker compose logs -f backend
 ```
-
-### Konfiguracja Storage (zdjęcia menu)
-
-1. W Supabase Dashboard przejdź do **Storage**
-2. Utwórz bucket `menu-images` (publiczny)
-3. Dodaj politykę RLS: INSERT/UPDATE dla uwierzytelnionych z rolą `admin`
 
 ---
 
 ## 🔐 Zmienne środowiskowe
 
-Utwórz plik `.env` na podstawie `.env.example`:
+`.env` w katalogu głównym projektu:
 
 ```env
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key-here
-VITE_STRIPE_PUBLISHABLE_KEY=pk_test_TUTAJ_WKLEJ
+# Backend API – adres używany przez frontend
+VITE_API_URL=http://localhost:8000
+
+# Stripe publishable key (z dashboardu Stripe)
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxx
 ```
 
-Sekrety dla Edge Functions (ustawiane przez `supabase secrets set`):
+`.env` (dla Dockera – backend działa jako `backend` w sieci Docker):
 
-| Sekret | Opis |
+```env
+# Baza danych
+DATABASE_URL=postgresql://restaurant:restaurant123@postgres:5432/restaurant
+
+# JWT
+SECRET_KEY=zmien-to-na-losowy-ciag-64-znakow
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=30
+
+# Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# DeepSeek
+DEEPSEEK_API_KEY=sk_...
+
+# SMTP (opcjonalnie – wysyłka emaili)
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=user@example.com
+SMTP_PASSWORD=password
+```
+
+---
+
+## 🌐 Wdrożenie na VPS
+
+Wymagany VPS z Docker i domeną (lub publicznym IP).
+
+### 1. Przygotowanie VPS
+
+```bash
+# Połącz się przez SSH
+ssh root@twoj-vps-ip
+
+# Zainstaluj Docker
+apt update && apt install -y docker.io docker-compose-v2
+```
+
+### 2. Deploy
+
+```bash
+# Sklonuj repo
+git clone https://github.com/krzysztofzelman/restaurant-clean.git
+cd restaurant-clean
+
+# Ustaw zmienne produkcyjne
+cp .env.example .env
+# Edytuj .env – dostosuj DATABASE_URL, SECRET_KEY, Stripe, DeepSeek itp.
+
+# Uruchom
+docker compose up -d
+```
+
+### 3. Nginx + SSL (zalecane)
+
+```nginx
+server {
+    listen 80;
+    server_name twoja-domena.pl;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name twoja-domena.pl;
+
+    ssl_certificate /etc/letsencrypt/live/twoja-domena.pl/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/twoja-domena.pl/privkey.pem;
+
+    # Backend API
+    location /api/ {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Obrazy menu
+    location /images/ {
+        proxy_pass http://localhost:8000;
+    }
+
+    # Frontend (zbudowany plik statyczny)
+    location / {
+        root /var/www/restaurant-clean/dist;
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+### 4. Automatyczny restart
+
+```bash
+# Docker compose uruchomi się automatycznie po restarcie VPS
+# (docker compose up -d już ustawia restart policy)
+```
+
+---
+
+## 🗄️ Baza danych
+
+9 tabel zarządzanych przez PostgreSQL + SQLAlchemy:
+
+| Tabela | Opis |
 |--------|------|
-| `DEEPSEEK_API_KEY` | Klucz API DeepSeek – wymagany dla czatu AI |
-| `SUPABASE_URL` | Automatycznie wstrzykiwany przez Supabase |
-| `SUPABASE_ANON_KEY` | Automatycznie wstrzykiwany przez Supabase |
-| `STRIPE_SECRET_KEY` | Sekretny klucz Stripe – dla `create-payment-intent` |
+| `users` | Użytkownicy (email, hasło bcrypt, rola, status aktywności) |
+| `menu_items` | 38 dań w 6 kategoriach (przystawki, zupy, dania główne, pizza, desery, napoje) |
+| `orders` / `order_items` | Zamówienia z pełną historią statusów i pozycjami |
+| `ingredients` / `ingredient_batches` / `menu_item_ingredients` | Składniki, partie i receptury (moduł magazynowy) |
+| `konwersacje` | Sesje czatu AI (JSONB – pełna historia rozmowy) |
+| `rezerwacje` | Rezerwacje stolików z walidacją CheckConstraint |
+
+6 funkcji PostgreSQL (migracja z Supabase PL/pgSQL):
+- `create_order_with_items` – atomowe tworzenie zamówienia z pozycjami
+- `consume_ingredients_for_order` – automatyczne odjęcie składników z magazynu
+- `update_order_status` – walidacja przejść stanu (state machine)
+- `track_revenue` – agregacja przychodów (dzień/tydzień/miesiąc)
+- `get_warehouse_stats` – statystyki magazynu (niskie stany, przeterminowania)
+- `cancel_unpaid_orders` – automatyczne anulowanie (uruchamiane przez Celery Beat co 5 min)
 
 ---
 
@@ -135,179 +272,70 @@ Sekrety dla Edge Functions (ustawiane przez `supabase secrets set`):
 
 ```
 restaurant-clean/
-├── public/                          # Statyczne assety (favicon)
-├── src/
-│   ├── components/
-│   │   ├── admin/
-│   │   │   ├── ReservationCalendar.tsx   # Kalendarz rezerwacji
-│   │   │   ├── ReservationList.tsx        # Lista rezerwacji z filtrami
-│   │   │   └── ReservationModal.tsx       # Modal szczegółów rezerwacji
-│   │   ├── ai/
-│   │   │   └── WirtualnyKelner.tsx        # Główny komponent czatu AI
-│   │   ├── CartWidget.tsx                 # Widget koszyka w navbarze
-│   │   ├── ErrorBoundary.tsx              # Globalny catcher błędów UI
-│   │   ├── MenuCard.tsx                   # Karta dania w menu
-│   │   ├── Navbar.tsx                     # Nawigacja zależna od roli
-│   │   └── StripePayment.tsx              # Formularz płatności Stripe
-│   ├── pages/
-│   │   ├── admin/
-│   │   │   └── ReservationsAdmin.tsx      # Panel rezerwacji (admin/kitchen)
-│   │   ├── AdminPage.tsx                  # Panel admina (menu, użytkownicy, zamówienia)
-│   │   ├── CartPage.tsx                   # Koszyk + płatność
-│   │   ├── CourierPage.tsx                # Panel kuriera
-│   │   ├── HomePage.tsx                   # Strona główna (wizytówka)
-│   │   ├── KitchenPage.tsx                # Panel kuchni
-│   │   ├── LoginPage.tsx                  # Logowanie z kontami testowymi
-│   │   ├── MenuPage.tsx                   # Menu z kategoriami
-│   │   ├── OrdersPage.tsx                 # Historia zamówień klienta
-│   │   ├── RegisterPage.tsx               # Rejestracja
-│   │   ├── ResetPasswordPage.tsx          # Reset hasła
-│   │   ├── StaffDashboard.tsx             # Dashboard personelu
-│   │   ├── UpdatePasswordPage.tsx         # Ustawienie nowego hasła
-│   │   └── WarehousePage.tsx              # Panel magazynu
-│   ├── services/
-│   │   ├── aiChatService.ts               # Komunikacja z Edge Function czatu
-│   │   └── api.ts                         # Klient Supabase (zapytania)
-│   ├── context/
-│   │   ├── AuthContext.tsx                 # Kontekst autoryzacji
-│   │   └── ToastContext.tsx                # System powiadomień toast
-│   ├── hooks/
-│   │   └── useCart.tsx                     # Hook koszyka (localStorage)
-│   ├── lib/
-│   │   ├── database.types.ts               # Typy TS dla schematu bazy
-│   │   └── supabaseClient.ts               # Inicjalizacja klienta Supabase
-│   ├── types/
-│   │   └── ai.ts                           # Typy dla czatu AI
-│   ├── App.tsx                             # Routing + provider hierarchy
-│   └── main.tsx                            # Entry point
-├── supabase/
-│   ├── functions/
-│   │   ├── chat-ai/
-│   │   │   └── index.ts                    # Edge Function – czat z DeepSeek
-│   │   └── create-payment-intent/
-│   │       └── index.ts                    # Edge Function – płatności Stripe
-│   └── migrations/
-│       └── 20260515_add_ai_chat_tables.sql # Migracja tabel czatu AI
-├── supabase-schema.sql                     # Pełny schemat bazy + RLS + seed
-├── .env.example                            # Szablon zmiennych środowiskowych
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-└── eslint.config.js
+├── backend/
+│   ├── app/
+│   │   ├── api/           # Routery FastAPI (auth, menu, orders, payment, chat, reservations, warehouse, upload)
+│   │   ├── models/        # SQLAlchemy ORM modele (user, menu_item, order, ingredient, konwersacje, rezerwacje)
+│   │   ├── schemas/       # Pydantic schematy walidacji
+│   │   ├── services/      # Logika biznesowa (auth, menu, order, payment, chat, warehouse, reservation)
+│   │   ├── main.py        # Entry point FastAPI
+│   │   ├── config.py      # pydantic-settings
+│   │   ├── database.py    # Engine + Session
+│   │   ├── seed.py        # Seed danych testowych
+│   │   └── celery_app.py  # Konfiguracja Celery
+│   ├── postgres/
+│   │   └── init.sql       # Pełny schemat SQL + funkcje + indeksy
+│   ├── Dockerfile         # Obraz produkcyjny
+│   ├── Dockerfile.dev     # Obraz deweloperski (hot reload)
+│   └── pyproject.toml     # Zależności Python
+├── src/                   # Frontend React/TypeScript
+│   ├── components/        # Komponenty UI (Navbar, MenuCard, StripePayment, WirtualnyKelner...)
+│   ├── pages/             # Strony (LoginPage, HomePage, MenuPage, CartPage, AdminPage...)
+│   ├── services/          # api.ts (klient HTTP), aiChatService.ts
+│   ├── context/           # AuthContext (JWT), ToastContext
+│   ├── hooks/             # useCart (koszyk w localStorage)
+│   ├── lib/               # apiClient.ts, tokenStorage.ts, database.types.ts
+│   └── types/             # ai.ts (typy dla czatu)
+├── docker-compose.yml     # 5 serwisów
+├── .env.example           # Szablon zmiennych
+└── PLAN_MIGRACJI.md       # Plan migracji Supabase → self-hosted
 ```
-
----
-
-## 🗄️ Baza danych (Supabase)
-
-Schemat obejmuje 7 głównych tabel:
-
-| Tabela | Opis |
-|--------|------|
-| `profiles` | Profile użytkowników (synchronizowane z `auth.users`), kolumna `role` z CHECK constraint |
-| `menu_items` | 38 dań w 6 kategoriach (przystawki, zupy, dania główne, pizza, desery, napoje) |
-| `orders` | Zamówienia ze statusem (pending → delivered), płatnością i przypisanym kurierem |
-| `order_items` | Pozycje zamówienia (produkt, ilość, cena jednostkowa) |
-| `rezerwacje` | Rezerwacje stolików – data, godzina, liczba gości, status, notatki |
-| `ai_chat_sessions` | Sesje czatu AI do utrzymania kontekstu rozmowy |
-| `ingredients` / `ingredient_batches` / `menu_item_ingredients` | Składniki, partie i receptury (moduł magazynowy) |
-
-**Bezpieczeństwo:** RLS (Row Level Security) – każdy widzi tylko swoje dane, personel widzi wszystko. Wszystkie polityki zdefiniowane w `supabase-schema.sql`.
-
-### Konta testowe
-
-| Email | Rola | Opis |
-|-------|------|------|
-| `admin@restauracja.pl` | `admin` | Pełny dostęp do panelu admina |
-| `kitchen@restauracja.pl` | `kitchen` | Panel kuchni i magazynu |
-| `kurier@restauracja.pl` | `courier` | Panel kuriera |
-| `jan@example.com` | `user` | Klient – menu, koszyk, zamówienia |
-
----
-
-## 🤖 AI – Wirtualny Kelner
-
-### Jak działa
-
-Edge Function `chat-ai` działa jako pośrednik między frontendem a DeepSeek API:
-
-1. Użytkownik pisze wiadomość w czacie (widget w prawym dolnym rogu)
-2. Frontend wysyła `POST /functions/v1/chat-ai` z historią konwersacji
-3. Funkcja analizuje wiadomość pod kątem słów kluczowych:
-   - **Menu/polecasz/cena** → do promptu dołączane jest aktualne menu z bazy danych
-   - **Rezerwacja/stolik** → funkcja może utworzyć rezerwację w tabeli `rezerwacje`
-4. DeepSeek generuje odpowiedź – po polsku, w roli kelnera
-5. Jeśli dotyczy rezerwacji – zwracane jest ID utworzonej rezerwacji
-
-### Typy akcji czatu
-
-| Akcja | Opis |
-|-------|------|
-| `order` | Zamówienie (przekierowanie do menu/koszyka) |
-| `reservation` | Rezerwacja stolika |
-| `menu_info` | Pytanie o menu, składniki, ceny |
-| `general` | Ogólna rozmowa (godziny otwarcia, lokalizacja itp.) |
-
-### Obsługiwane tematy
-
-- Menu i polecenia dań (z rzeczywistą bazą danych)
-- Składniki i ceny
-- Rezerwacje stolików (data, godzina, liczba gości)
-- Godziny otwarcia, adres restauracji
-- Naturalna, swobodna rozmowa po polsku
-
----
-
-## 💳 Płatności (Stripe)
-
-- Edge Function `create-payment-intent` tworzy Payment Intent dla koszyka
-- Frontend używa `@stripe/react-stripe-js` do bezpiecznego wprowadzenia danych karty
-- Karta testowa: `4242 4242 4242 4242`, dowolna przyszła data, dowolny CVC
-- Statusy płatności: `unpaid` → `paid` → `refunded`
-- Automatyczne anulowanie nieopłaconych zamówień po 15 minutach (pg_cron)
 
 ---
 
 ## 🧪 Skrypty
 
 ```bash
-npm run dev          # Uruchom serwer deweloperski (Vite)
+# Frontend
+npm run dev          # Serwer deweloperski (Vite) – http://localhost:5173
 npm run build        # Buduj wersję produkcyjną
-npm run preview      # Podgląd zbudowanej wersji
+npm run test         # Uruchom testy (Vitest)
 npm run typecheck    # Sprawdź typy TypeScript (tsc --noEmit)
-npm run lint         # ESLint całego kodu w src/
+npm run lint         # ESLint
+
+# Backend (przez Docker)
+docker compose logs -f backend          # Logi backendu
+docker compose logs -f celery-worker    # Logi Celery worker
+docker compose exec backend alembic ... # Migracje (jeśli dodane)
 ```
 
 ---
 
-## 🌐 Wdrożenie na Vercel
+## 🤖 AI – Wirtualny Kelner
 
-1. Podłącz repozytorium do [Vercel](https://vercel.com) (Import Git Repository)
-2. Ustawienia:
-
-   | Ustawienie | Wartość |
-   |---|---|
-   | **Framework** | Vite |
-   | **Build Command** | `npm run build` |
-   | **Output Directory** | `dist` |
-
-3. Dodaj zmienne środowiskowe: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_STRIPE_PUBLISHABLE_KEY`
-4. Kliknij **Deploy**
-
----
-
-## 📸 Screenshoty
-
-*Do dodania – zrzuty ekranu głównych widoków: strona główna, menu, czat AI, panel rezerwacji admina.*
-
----
-
-## 👤 Autor
-
-**Krzysztof Zelman**
+- **Silnik:** LangChain + DeepSeek (`deepseek-chat` przez API OpenAI-compatible)
+- **Kontekst:** Backend przechowuje historię rozmowy w tabeli `konwersacje` (JSONB)
+- **Fallback:** Jeśli klucz DeepSeek nie jest skonfigurowany, czat zwraca komunikat o niedostępności
+- **Prompt systemowy:** Asystent restauracji mówiący po polsku, znający menu
 
 ---
 
 ## 📄 Licencja
 
 MIT
+
+---
+
+## 👤 Autor
+
+**Krzysztof Zelman**

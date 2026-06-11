@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: restaurant-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      POSTGRES_DB: restaurant
+      POSTGRES_USER: restaurant
+      POSTGRES_PASSWORD: restaurant_dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U restaurant -d restaurant"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: restaurant-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: restaurant-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - menu_images:/app/images
+    environment:
+      DATABASE_URL: postgresql://restaurant:restaurant_dev@postgres:5432/restaurant
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key-change-in-production
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-sk_placeholder}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: restaurant-celery-worker
+    restart: unless-stopped
+    command: celery -A app.celery_app worker --loglevel=info
+    volumes:
+      - ./backend/app:/app/app
+    environment:
+      DATABASE_URL: postgresql://restaurant:restaurant_dev@postgres:5432/restaurant
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key-change-in-production
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-sk_placeholder}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: restaurant-celery-beat
+    restart: unless-stopped
+    command: celery -A app.celery_app beat --loglevel=info
+    volumes:
+      - ./backend/app:/app/app
+    environment:
+      DATABASE_URL: postgresql://restaurant:restaurant_dev@postgres:5432/restaurant
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key-change-in-production
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-sk_placeholder}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  menu_images:

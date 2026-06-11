@@ -1,11 +1,22 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabaseClient';
-import { getUserProfile } from '../services/api';
+import { apiRequest } from '../lib/apiClient';
+import {
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+  clearTokens,
+  getUserIdFromToken,
+  getTokenPayload,
+} from '../lib/tokenStorage';
 import type { Profile } from '../lib/database.types';
 
+interface AuthUser {
+  id: string;
+  email: string | null;
+}
+
 interface AuthContextValue {
-  user: User | null;
+  user: AuthUser | null;
   profile: Profile | null;
   loading: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<unknown>;
@@ -16,48 +27,22 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24h
-const STORAGE_KEY = 'restaurant_session_start';
-
-function getSessionStart(): number | null {
-  try {
-    const val = localStorage.getItem(STORAGE_KEY);
-    return val ? Number(val) : null;
-  } catch {
-    return null;
-  }
-}
-
-function setSessionStart() {
-  try {
-    localStorage.setItem(STORAGE_KEY, String(Date.now()));
-  } catch {
-    // localStorage niedostępny
-  }
-}
-
-function clearSessionStart() {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // localStorage niedostępny
-  }
-}
-
-function isSessionExpired(): boolean {
-  const start = getSessionStart();
-  if (!start) return false;
-  return Date.now() - start > SESSION_TIMEOUT_MS;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function loadProfile(userId: string) {
     try {
-      const p = await getUserProfile(userId);
+      const raw = await apiRequest<Record<string, unknown>>('/api/auth/me');
+      const p: Profile = {
+        id: raw.id as string,
+        email: (raw.email as string) ?? null,
+        full_name: (raw.full_name as string) ?? null,
+        role: raw.role as Profile['role'],
+        is_active: raw.is_active as boolean,
+        created_at: raw.created_at as string,
+      };
       setProfile(p);
     } catch {
       setProfile(null);
@@ -66,71 +51,121 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function signIn(email: string, password: string) {
+    const data = await apiRequest<Record<string, unknown>>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+
+    const accessToken = data.access_token as string;
+    const refreshToken = data.refresh_token as string;
+
+    if (!accessToken) {
+      throw new Error('No access token received');
+    }
+
+    setTokens(accessToken, refreshToken || '');
+
+    const payload = getTokenPayload(accessToken);
+    const userId = payload?.sub || getUserIdFromToken();
+    const userEmail = (payload?.email as string) ?? email;
+
+    const authUser: AuthUser = {
+      id: userId as string,
+      email: userEmail,
+    };
+    setUser(authUser);
+
+    // Load profile in the background
+    loadProfile(authUser.id).catch(() => {});
+
+    return data;
+  }
+
+  async function signUp(email: string, password: string, fullName: string) {
+    const data = await apiRequest<Record<string, unknown>>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, full_name: fullName }),
+    });
+    return data;
+  }
+
   async function signOut() {
-    clearSessionStart();
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    clearTokens();
+    setUser(null);
+    setProfile(null);
+    setLoading(false);
   }
 
   useEffect(() => {
-    // Check active session + session timeout
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        // Sprawdź czy sesja nie wygasła
-        if (isSessionExpired()) {
-          signOut().catch(() => {});
-          setLoading(false);
-          return;
-        }
-        setUser(session.user);
-        loadProfile(session.user.id);
+    // Check for existing valid session
+    const token = getAccessToken();
+    if (token) {
+      const payload = getTokenPayload(token);
+      if (payload && payload.exp && payload.exp * 1000 > Date.now()) {
+        const userId = payload.sub;
+        const authUser: AuthUser = {
+          id: userId as string,
+          email: (payload.email as string) ?? null,
+        };
+        setUser(authUser);
+        loadProfile(authUser.id);
+        return;
       } else {
-        setLoading(false);
-      }
-    });
+        // Token expired, try to refresh
+        const refreshToken = getRefreshToken();
+        if (refreshToken) {
+          apiRequest<Record<string, unknown>>('/api/auth/refresh', {
+            method: 'POST',
+            body: JSON.stringify({ refresh_token: refreshToken }),
+          })
+            .then((data) => {
+              const newAccess = data.access_token as string;
+              const newRefresh = (data.refresh_token as string) || refreshToken;
+              setTokens(newAccess, newRefresh);
 
-    // Listen for auth changes
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event: string, session) => {
-        if (session?.user) {
-          setSessionStart();
-          setUser(session.user);
-          loadProfile(session.user.id);
+              const payload = getTokenPayload(newAccess);
+              const userId = payload?.sub;
+              const authUser: AuthUser = {
+                id: userId as string,
+                email: (payload?.email as string) ?? null,
+              };
+              setUser(authUser);
+              return loadProfile(authUser.id);
+            })
+            .catch(() => {
+              // Refresh failed — clear everything
+              clearTokens();
+              setUser(null);
+              setProfile(null);
+              setLoading(false);
+            });
         } else {
-          clearSessionStart();
-          setUser(null);
-          setProfile(null);
+          clearTokens();
           setLoading(false);
         }
-      },
-    );
-
-    return () => listener?.subscription?.unsubscribe();
+      }
+    } else {
+      setLoading(false);
+    }
   }, []);
-
-  async function signUp(email: string, password: string, fullName: string) {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
-    });
-    if (error) throw error;
-    return data;
-  }
-
-  async function signIn(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
-    return data;
-  }
 
   const refreshProfile = async () => {
     if (user) {
-      const p = await getUserProfile(user.id);
-      setProfile(p);
+      try {
+        const raw = await apiRequest<Record<string, unknown>>('/api/auth/me');
+        const p: Profile = {
+          id: raw.id as string,
+          email: (raw.email as string) ?? null,
+          full_name: (raw.full_name as string) ?? null,
+          role: raw.role as Profile['role'],
+          is_active: raw.is_active as boolean,
+          created_at: raw.created_at as string,
+        };
+        setProfile(p);
+      } catch {
+        // ignore
+      }
     }
   };
 

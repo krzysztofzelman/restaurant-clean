@@ -1,12 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl: string = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey: string = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Brak zmiennych środowiskowych VITE_SUPABASE_URL i VITE_SUPABASE_ANON_KEY. Skopiuj .env.example do .env i uzupełnij dane.',
-  );
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+/**
+ * Supabase client — removed in favor of self-hosted FastAPI backend.
+ *
+ * @deprecated The project no longer uses Supabase. All API calls go
+ * through the backend at VITE_API_URL via apiClient.ts.
+ * Remove this file once all references are cleaned up.
+ */
+export const supabase: never = undefined as never;

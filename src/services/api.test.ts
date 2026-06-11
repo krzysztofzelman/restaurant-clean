@@ -1,4 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Create mock with vi.hoisted so it's available before hoisted vi.mock
+const { mockApiRequest } = vi.hoisted(() => ({
+  mockApiRequest: vi.fn(),
+}));
+
+vi.mock('../lib/apiClient', () => ({
+  apiRequest: mockApiRequest,
+}));
+
+// Now import functions that use apiRequest
 import {
   getAllReservations,
   createReservation,
@@ -8,47 +19,6 @@ import {
   getUserProfile,
 } from './api';
 
-// Build a simple chain mock for Supabase queries
-// Each method returns the chain object itself
-// The chain is also a thenable, so `await chain` resolves to expectedResult
-function createChainMock(expectedResult: { data: unknown; error: unknown }) {
-  const terminalPromise = expectedResult.error
-    ? Promise.reject(expectedResult.error)
-    : Promise.resolve(expectedResult);
-
-  const chain: Record<string, vi.Mock | Promise<unknown>> & {
-    then?: Promise<unknown>['then'];
-    catch?: Promise<unknown>['catch'];
-  } = {};
-
-  const methods = [
-    'select', 'insert', 'update', 'delete',
-    'order', 'eq', 'or', 'single',
-    'range', 'limit', 'gte', 'lte', 'in',
-  ];
-
-  for (const method of methods) {
-    chain[method] = vi.fn(() => chain);
-  }
-
-  // Make chain thenable so `await chain` resolves/rejects
-  chain.then = terminalPromise.then.bind(terminalPromise);
-  chain.catch = terminalPromise.catch.bind(terminalPromise);
-
-  return chain;
-}
-
-// Mock Supabase client
-vi.mock('../lib/supabaseClient', () => {
-  const mod = { supabase: { from: vi.fn() } };
-  return mod;
-});
-
-async function getSupabaseFrom() {
-  const mod = await import('../lib/supabaseClient');
-  return mod.supabase.from as unknown as ReturnType<typeof vi.fn>;
-}
-
 describe('api.ts — reservations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -56,47 +26,52 @@ describe('api.ts — reservations', () => {
 
   describe('getAllReservations', () => {
     it('should fetch reservations without filters', async () => {
-      const mockData = [{ id: '1', date: '2025-01-15', status: 'pending' }];
-      const chain = createChainMock({ data: mockData, error: null });
-      const supabaseFrom = await getSupabaseFrom();
-      supabaseFrom.mockReturnValue(chain);
+      const mockData = [
+        {
+          id: '1',
+          user_id: 'user-1',
+          date: '2025-01-15',
+          time: '18:00',
+          guests: 2,
+          status: 'pending',
+          notes: null,
+          created_at: '2025-01-10T12:00:00Z',
+          user: null,
+        },
+      ];
+      mockApiRequest.mockResolvedValue(mockData);
 
       const result = await getAllReservations();
 
-      expect(supabaseFrom).toHaveBeenCalledWith('rezerwacje');
-      expect(result).toEqual(mockData);
+      expect(mockApiRequest).toHaveBeenCalledWith('/api/reservations');
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('1');
     });
 
     it('should apply date and status filters when provided', async () => {
-      const mockData = [{ id: '2', date: '2025-02-01', status: 'confirmed' }];
-      const chain = createChainMock({ data: mockData, error: null });
-      const supabaseFrom = await getSupabaseFrom();
-      supabaseFrom.mockReturnValue(chain);
+      mockApiRequest.mockResolvedValue([]);
 
-      const result = await getAllReservations({
+      await getAllReservations({
         startDate: '2025-01-01',
         endDate: '2025-03-01',
         status: 'confirmed',
       });
 
-      expect(chain.gte).toHaveBeenCalledWith('date', '2025-01-01');
-      expect(chain.lte).toHaveBeenCalledWith('date', '2025-03-01');
-      expect(chain.eq).toHaveBeenCalledWith('status', 'confirmed');
-      expect(result).toEqual(mockData);
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        '/api/reservations?start_date=2025-01-01&end_date=2025-03-01&status=confirmed',
+      );
     });
 
     it('should throw on error', async () => {
-      const chain = createChainMock({ data: null, error: new Error('DB error') });
-      const supabaseFrom = await getSupabaseFrom();
-      supabaseFrom.mockReturnValue(chain);
+      mockApiRequest.mockRejectedValue(new Error('DB error'));
 
       await expect(getAllReservations()).rejects.toThrow('DB error');
     });
   });
 
   describe('createReservation', () => {
-    it('should insert reservation with pending status', async () => {
-      const mockInserted = {
+    it('should POST reservation data to backend (user_id from JWT, not in body)', async () => {
+      const mockData = {
         id: '3',
         user_id: 'user-1',
         date: '2025-06-15',
@@ -106,9 +81,7 @@ describe('api.ts — reservations', () => {
         notes: null,
         created_at: '2025-06-10T12:00:00Z',
       };
-      const chain = createChainMock({ data: mockInserted, error: null });
-      const supabaseFrom = await getSupabaseFrom();
-      supabaseFrom.mockReturnValue(chain);
+      mockApiRequest.mockResolvedValue(mockData);
 
       const result = await createReservation({
         user_id: 'user-1',
@@ -118,24 +91,26 @@ describe('api.ts — reservations', () => {
         notes: null,
       });
 
-      expect(supabaseFrom).toHaveBeenCalledWith('rezerwacje');
-      expect(chain.insert).toHaveBeenCalledWith([
-        {
-          user_id: 'user-1',
+      // user_id is NOT in the body — backend gets user from JWT
+      expect(mockApiRequest).toHaveBeenCalledWith('/api/reservations', {
+        method: 'POST',
+        body: JSON.stringify({
           date: '2025-06-15',
           time: '18:00',
           guests: 4,
           notes: null,
-          status: 'pending',
-        },
-      ]);
-      expect(result).toEqual(mockInserted);
+        }),
+      });
+      expect(result).toMatchObject({
+        id: '3',
+        user_id: 'user-1',
+        date: '2025-06-15',
+        status: 'pending',
+      });
     });
 
     it('should throw on insert error', async () => {
-      const chain = createChainMock({ data: null, error: new Error('Insert failed') });
-      const supabaseFrom = await getSupabaseFrom();
-      supabaseFrom.mockReturnValue(chain);
+      mockApiRequest.mockRejectedValue(new Error('Insert failed'));
 
       await expect(
         createReservation({
@@ -150,23 +125,33 @@ describe('api.ts — reservations', () => {
   });
 
   describe('updateReservationStatus', () => {
-    it('should update status to confirmed', async () => {
-      const mockUpdated = { id: '1', status: 'confirmed' };
-      const chain = createChainMock({ data: mockUpdated, error: null });
-      const supabaseFrom = await getSupabaseFrom();
-      supabaseFrom.mockReturnValue(chain);
+    it('should PUT updated status', async () => {
+      const mockData = {
+        id: '1',
+        user_id: 'user-1',
+        date: '2025-06-15',
+        time: '18:00',
+        guests: 2,
+        status: 'confirmed',
+        notes: null,
+        created_at: '2025-01-10T12:00:00Z',
+      };
+      mockApiRequest.mockResolvedValue(mockData);
 
       const result = await updateReservationStatus('1', 'confirmed');
 
-      expect(chain.update).toHaveBeenCalledWith({ status: 'confirmed' });
-      expect(chain.eq).toHaveBeenCalledWith('id', '1');
-      expect(result).toEqual(mockUpdated);
+      expect(mockApiRequest).toHaveBeenCalledWith('/api/reservations/1', {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'confirmed' }),
+      });
+      expect(result).toMatchObject({
+        id: '1',
+        status: 'confirmed',
+      });
     });
 
     it('should throw on update error', async () => {
-      const chain = createChainMock({ data: null, error: new Error('Update failed') });
-      const supabaseFrom = await getSupabaseFrom();
-      supabaseFrom.mockReturnValue(chain);
+      mockApiRequest.mockRejectedValue(new Error('Update failed'));
 
       await expect(
         updateReservationStatus('1', 'cancelled'),
@@ -181,15 +166,15 @@ describe('api.ts — menu items', () => {
   });
 
   it('getMenuItems should fetch available items', async () => {
-    const mockData = [{ id: '1', name: 'Pizza', is_available: true, category: 'Dania główne' }];
-    const chain = createChainMock({ data: mockData, error: null });
-    const supabaseFrom = await getSupabaseFrom();
-    supabaseFrom.mockReturnValue(chain);
+    const mockData = [
+      { id: '1', name: 'Pizza', is_available: true, category: 'Dania główne' },
+    ];
+    mockApiRequest.mockResolvedValue(mockData);
 
     const result = await getMenuItems();
 
-    expect(chain.eq).toHaveBeenCalledWith('is_available', true);
-    expect(result).toEqual(mockData);
+    expect(mockApiRequest).toHaveBeenCalledWith('/api/menu?available_only=true');
+    expect(result).toHaveLength(1);
   });
 
   it('getAllMenuItems should fetch all items', async () => {
@@ -197,13 +182,11 @@ describe('api.ts — menu items', () => {
       { id: '1', name: 'Pizza', is_available: false, category: 'Dania główne' },
       { id: '2', name: 'Pasta', is_available: true, category: 'Dania główne' },
     ];
-    const chain = createChainMock({ data: mockData, error: null });
-    const supabaseFrom = await getSupabaseFrom();
-    supabaseFrom.mockReturnValue(chain);
+    mockApiRequest.mockResolvedValue(mockData);
 
     const result = await getAllMenuItems();
 
-    expect(result).toEqual(mockData);
+    expect(mockApiRequest).toHaveBeenCalledWith('/api/menu?available_only=false');
     expect(result).toHaveLength(2);
   });
 });
@@ -213,19 +196,26 @@ describe('api.ts — user profiles', () => {
     vi.clearAllMocks();
   });
 
-  it('getUserProfile should fetch a single profile', async () => {
-    const mockProfile = {
+  it('getUserProfile should fetch from /api/auth/me', async () => {
+    const mockApiData = {
       id: 'user-1',
       email: 'test@example.com',
       full_name: 'Test User',
       role: 'user',
+      is_active: true,
+      created_at: '2025-01-01T00:00:00Z',
     };
-    const chain = createChainMock({ data: mockProfile, error: null });
-    const supabaseFrom = await getSupabaseFrom();
-    supabaseFrom.mockReturnValue(chain);
+    mockApiRequest.mockResolvedValue(mockApiData);
 
     const result = await getUserProfile('user-1');
 
-    expect(result).toEqual(mockProfile);
+    expect(mockApiRequest).toHaveBeenCalledWith('/api/auth/me');
+    expect(result).toMatchObject({
+      id: 'user-1',
+      email: 'test@example.com',
+      full_name: 'Test User',
+      role: 'user',
+      is_active: true,
+    });
   });
 });

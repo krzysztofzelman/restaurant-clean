@@ -1,0 +1,30 @@
+[project]
+name = "restaurant-backend"
+version = "0.1.0"
+description = "Restaurant ordering backend - FastAPI"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "sqlalchemy>=2.0.0",
+    "psycopg2-binary>=2.9.0",
+    "alembic>=1.14.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "bcrypt>=4.0.0,<5.0.0",
+    "python-multipart>=0.0.9",
+    "stripe>=10.0.0",
+    "redis>=5.0.0",
+    "celery>=5.4.0",
+    "httpx>=0.28.0",
+    "langchain>=0.3.0",
+    "langchain-openai>=0.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.28.0",
+]
