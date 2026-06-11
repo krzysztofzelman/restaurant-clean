@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getMyOrders } from '../services/api';
 import { statusLabels, statusColors } from '../constants/orderStatus';
-import type { OrderWithRelations, OrderStatus } from '../lib/database.types';
+import type { OrderWithRelations } from '../lib/database.types';
 
 export default function OrdersPage() {
   const { user, loading: authLoading } = useAuth();

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type {
   MenuItem,
   MenuItemIngredientWithIngredient,
@@ -57,7 +56,6 @@ export default function AdminMenuTab({
   editItem,
   form,
   setForm,
-  imageFile,
   imagePreview,
   submitting,
   handleImageChange,

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getCourierOrders, updateDeliveryStatus, getCourierHistory } from '../services/api';
 import { statusLabels, statusColors } from '../constants/orderStatus';
-import type { OrderWithRelations, OrderStatus } from '../lib/database.types';
+import type { OrderWithRelations } from '../lib/database.types';
 
 export default function CourierPage() {
   const { user } = useAuth();

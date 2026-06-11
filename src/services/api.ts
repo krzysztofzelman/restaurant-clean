@@ -2,6 +2,9 @@ import { apiRequest } from '../lib/apiClient';
 import type {
   MenuItem,
   Order,
+  OrderStatus,
+  DeliveryStatus,
+  PaymentStatus,
   OrderWithRelations,
   Profile,
   IngredientWithBatches,
@@ -9,6 +12,7 @@ import type {
   MenuItemIngredientWithIngredient,
   Conversation,
   Reservation,
+  ReservationStatus,
   ReservationWithProfile,
 } from '../lib/database.types';
 
@@ -87,10 +91,10 @@ function mapOrder(raw: Record<string, unknown>): Order {
   return {
     id: raw.id as string,
     user_id: raw.user_id as string,
-    status: raw.status as string,
-    delivery_status: raw.delivery_status as string,
+    status: raw.status as OrderStatus,
+    delivery_status: raw.delivery_status as DeliveryStatus,
     total_amount: raw.total_amount as number,
-    payment_status: raw.payment_status as string,
+    payment_status: raw.payment_status as PaymentStatus,
     delivery_address: (raw.delivery_address as string) ?? null,
     notes: (raw.notes as string) ?? null,
     courier_id: (raw.courier_id as string) ?? null,
@@ -228,7 +232,7 @@ export async function getCourierHistory(
 export async function updateDeliveryStatus(
   orderId: string,
   status: string,
-  courierId?: string,
+  _courierId?: string,
 ): Promise<void> {
   const body: Record<string, unknown> = { status };
   await apiRequest(`/api/orders/${orderId}/status`, {
@@ -252,7 +256,7 @@ export async function createPaymentIntent(
 
 /* ──────────────── User profile ──────────────── */
 
-export async function getUserProfile(userId: string): Promise<Profile> {
+export async function getUserProfile(_userId: string): Promise<Profile> {
   const raw = await apiRequest<Record<string, unknown>>('/api/auth/me');
   return {
     id: raw.id as string,
@@ -445,12 +449,6 @@ export async function addMenuItemIngredient(
     method: 'PUT',
     body: JSON.stringify({ items: updated }),
   });
-  // Re-read to get the full updated list
-  const fresh = await apiRequest<Record<string, unknown>>(
-    `/api/warehouse/recipes/${menuItemId}`,
-  );
-  const freshIngredients = (fresh.ingredients as Record<string, unknown>[]) || [];
-  const added = freshIngredients[freshIngredients.length - 1];
   return {
     id: '',
     menu_item_id: menuItemId,
@@ -467,7 +465,7 @@ export async function addMenuItemIngredient(
   };
 }
 
-export async function deleteMenuItemIngredient(id: string): Promise<void> {
+export async function deleteMenuItemIngredient(_id: string): Promise<void> {
   // For now, this is a no-op since recipes use bulk PUT.
   // Individual ingredient removal would need a backend endpoint.
   console.warn('deleteMenuItemIngredient not implemented via HTTP API');
@@ -609,14 +607,14 @@ export async function createReservation(
     date: raw.date as string,
     time: raw.time as string,
     guests: raw.guests as number,
-    status: (raw.status as string) ?? 'pending',
+    status: (raw.status as ReservationStatus) ?? 'pending',
     notes: (raw.notes as string) ?? null,
     created_at: raw.created_at as string,
   };
 }
 
 export async function getUserReservations(
-  userId: string,
+  _userId: string,
 ): Promise<Reservation[]> {
   const raw = await apiRequest<Record<string, unknown>[]>('/api/reservations');
   return raw.map((r) => ({
@@ -625,7 +623,7 @@ export async function getUserReservations(
     date: r.date as string,
     time: r.time as string,
     guests: r.guests as number,
-    status: r.status as string,
+    status: r.status as ReservationStatus,
     notes: (r.notes as string) ?? null,
     created_at: r.created_at as string,
   }));
@@ -658,7 +656,7 @@ export async function getAllReservations(
       date: r.date as string,
       time: r.time as string,
       guests: r.guests as number,
-      status: r.status as string,
+      status: r.status as ReservationStatus,
       notes: (r.notes as string) ?? null,
       created_at: r.created_at as string,
       profiles: userRaw
@@ -688,7 +686,7 @@ export async function updateReservationStatus(
     date: raw.date as string,
     time: raw.time as string,
     guests: raw.guests as number,
-    status: raw.status as string,
+    status: raw.status as ReservationStatus,
     notes: (raw.notes as string) ?? null,
     created_at: raw.created_at as string,
   };

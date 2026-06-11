@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function loadProfile(userId: string) {
+  async function loadProfile(_userId: string) {
     try {
       const raw = await apiRequest<Record<string, unknown>>('/api/auth/me');
       const p: Profile = {
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setTokens(accessToken, refreshToken || '');
 
-    const payload = getTokenPayload(accessToken);
+    const payload = getTokenPayload();
     const userId = payload?.sub || getUserIdFromToken();
     const userEmail = (payload?.email as string) ?? email;
 
@@ -101,8 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check for existing valid session
     const token = getAccessToken();
     if (token) {
-      const payload = getTokenPayload(token);
-      if (payload && payload.exp && payload.exp * 1000 > Date.now()) {
+      const payload = getTokenPayload();
+      if (payload && payload.exp && (payload.exp as number) * 1000 > Date.now()) {
         const userId = payload.sub;
         const authUser: AuthUser = {
           id: userId as string,
@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               const newRefresh = (data.refresh_token as string) || refreshToken;
               setTokens(newAccess, newRefresh);
 
-              const payload = getTokenPayload(newAccess);
+              const payload = getTokenPayload();
               const userId = payload?.sub;
               const authUser: AuthUser = {
                 id: userId as string,
