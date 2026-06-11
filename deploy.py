@@ -84,7 +84,7 @@ def main():
         out, _, _ = ssh.run("docker --version")
         print(f"  Docker: {out}")
 
-    if not ssh.run_ok("nginx -v", check=False):
+    if not ssh.run_ok("nginx -v"):
         print("  Installing Nginx + Certbot...")
         ssh.run("apt-get install -y -qq nginx certbot python3-certbot-nginx", timeout=120)
     else:
@@ -156,7 +156,7 @@ FRONTEND_URL=http://{DOMAIN}
 
     # 7. Build frontend
     step("7. Build frontend")
-    if not ssh.run_ok("node --version", check=False):
+    if not ssh.run_ok("node --version"):
         print("  Installing Node.js...")
         ssh.run("apt-get install -y -qq nodejs npm", timeout=120)
     out, _, code = ssh.run(f"cd {PROJECT_DIR} && npm install", timeout=120)
@@ -220,7 +220,7 @@ FRONTEND_URL=http://{DOMAIN}
 
     # 9. UFW
     step("9. Firewall")
-    if ssh.run_ok("which ufw", check=False):
+    if ssh.run_ok("which ufw"):
         ssh.run("ufw --force enable", check=False)
         ssh.run("ufw allow 80/tcp", check=False)
         ssh.run("ufw allow 443/tcp", check=False)
