@@ -2,10 +2,11 @@
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)](https://fastapi.tiangolo.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.136-009688?logo=fastapi)](https://fastapi.tiangolo.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql)](https://www.postgresql.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](https://docs.docker.com/compose/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-57%20passing-28a745?logo=pytest)](backend/tests)
 
 Nowoczesna aplikacja webowa dla restauracji, wyposażona w **Wirtualnego Kelnera AI** – czatbota opartego na DeepSeek, który zna prawdziwe menu, przyjmuje zamówienia i rezerwacje.
 
@@ -38,13 +39,14 @@ Aplikacja działa w modelu **self-hosted** na własnym VPS: Python/FastAPI + Pos
 
 | Składnik | Technologia |
 |----------|-------------|
-| **Framework** | FastAPI 0.115 (Python 3.12) |
+| **Framework** | FastAPI 0.136 (Python 3.12+) |
 | **ORM** | SQLAlchemy 2.0 + Alembic (migracje) |
 | **Baza danych** | PostgreSQL 16 |
 | **Kolejka zadań** | Celery + Redis (wysyłka emaili, anulowanie zamówień) |
-| **Autoryzacja** | bcrypt (hasła) + PyJWT (tokeny access/refresh) |
+| **Autoryzacja** | bcrypt (hasła) + PyJWT (tokeny access/refresh w httpOnly cookie) |
+| **Rate limiting** | slowapi (5/min register, 10/min login/refresh) |
 | **AI** | LangChain + DeepSeek (API OpenAI-compatible) |
-| **Płatności** | Stripe SDK (webhook do aktualizacji statusu) |
+| **Płatności** | Stripe SDK (webhook z idempotencją) |
 | **Wysyłka emaili** | SMTP (potwierdzenia zamówień, statusy) |
 
 ### Frontend (React / TypeScript)
@@ -54,7 +56,7 @@ Aplikacja działa w modelu **self-hosted** na własnym VPS: Python/FastAPI + Pos
 | **Framework** | React 19, TypeScript 6, Vite 6 |
 | **Routing** | react-router-dom 7 |
 | **Stylowanie** | Bootstrap 5.3 |
-| **HTTP** | Fetch API z `apiClient.ts` (JWT Bearer, automatyczne odświeżanie tokenów) |
+| **HTTP** | Fetch API z `apiClient.ts` (httpOnly cookie refresh, automatyczne odświeżanie tokenów) |
 | **Płatności** | Stripe Elements (`@stripe/react-stripe-js`) |
 
 ### Infrastruktura
@@ -107,7 +109,7 @@ npm run dev
 |-------|-------|------|
 | `admin@restauracja.pl` | `admin123` | admin |
 | `kitchen@restauracja.pl` | `kitchen123` | kitchen |
-| `kurier@restauracja.pl` | `courier123` | courier |
+| `kurier@restauracja.pl` | `kurier123` | courier |
 | `jan@example.com` | `user123` | user |
 
 ### Serwisy Docker
@@ -133,43 +135,45 @@ docker compose logs -f backend
 
 ---
 
+## 🔒 Bezpieczeństwo
+
+| Obszar | Zabezpieczenie |
+|--------|---------------|
+| 🔑 **Klucze / sekrety** | Żadne sekrety nie są hardcodowane – wymagane przez zmienne środowiskowe. `SECRET_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` muszą być ustawione w `.env`. `deploy.py` generuje losowy klucz. |
+| 🍪 **JWT** | Access token w pamięci (JS), refresh token w httpOnly cookie – brak dostępu z `localStorage`, odporne na XSS. |
+| ⏱️ **Rate limiting** | 5 zapytań/min na rejestrację, 10/min na login/refresh (slowapi). |
+| 🔄 **Webhook idempotencja** | Stripe webhook zdarzenia deduplikowane w pamięci przez 24h TTL. |
+| 📁 **Upload plików** | Walidacja content-type + limit 5 MB. |
+| 🔐 **Hasła** | bcrypt (solone, + koszt 12). |
+| 📦 **Zależności** | `python-jose` → `PyJWT` (CVE naprawione), `react-router-dom` zaktualizowane (DoS CVE). |
+| ✅ **Testy** | 57 testów (23 backend + 34 frontend) – pokrycie autoryzacji, JWT, API endpointów. |
+
+---
+
 ## 🔐 Zmienne środowiskowe
 
-`.env` w katalogu głównym projektu:
+Aplikacja używa jednego pliku `.env` w katalogu głównym projektu (wzór: `.env.example`):
 
 ```env
-# Backend API – adres używany przez frontend
+# ── Frontend ──
 VITE_API_URL=http://localhost:8000
-
-# Stripe publishable key (z dashboardu Stripe)
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxxxxxxxxxxxx
-```
 
-`.env` (dla Dockera – backend działa jako `backend` w sieci Docker):
-
-```env
-# Baza danych
-DATABASE_URL=postgresql://restaurant:restaurant123@postgres:5432/restaurant
-
-# JWT
-SECRET_KEY=zmien-to-na-losowy-ciag-64-znakow
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=30
-
-# Stripe
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-
-# DeepSeek
-DEEPSEEK_API_KEY=sk_...
-
-# SMTP (opcjonalnie – wysyłka emaili)
-SMTP_HOST=smtp.example.com
+# ── Backend ──
+DATABASE_URL=postgresql://restaurant:restaurant_dev@postgres:5432/restaurant
+REDIS_URL=redis://redis:6379/0
+SECRET_KEY=dev-secret-key-change-in-production
+STRIPE_SECRET_KEY=sk_test_xxxxxxxxxxxxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxx
+DEEPSEEK_API_KEY=sk_xxxxxxxxxxxxxxx
+SMTP_HOST=
 SMTP_PORT=587
-SMTP_USER=user@example.com
-SMTP_PASSWORD=password
+SMTP_USER=
+SMTP_PASSWORD=
+FRONTEND_URL=http://localhost:5173
 ```
+
+> **⚠️ Ważne:** W produkcji wymagany jest silny, losowy `SECRET_KEY` (min. 64 znaki). `deploy.py` generuje go automatycznie.
 
 ---
 
@@ -187,20 +191,22 @@ ssh root@twoj-vps-ip -p 2022
 apt update && apt install -y docker.io docker-compose-v2
 ```
 
-### 2. Deploy
+### 2. Deploy (automatyczny)
 
 ```bash
 # Sklonuj repo
 git clone https://github.com/krzysztofzelman/restaurant-clean.git
 cd restaurant-clean
 
-# Ustaw zmienne produkcyjne
-cp .env.example .env
-# Edytuj .env – dostosuj DATABASE_URL, SECRET_KEY, Stripe, DeepSeek itp.
-
-# Uruchom
-docker compose up -d
+# Skrypt deploy.py poprosi o dane VPS (lub użyje zmiennych środowiskowych)
+# i automatycznie:
+#   - generuje losowy SECRET_KEY
+#   - przesyła pliki na serwer
+#   - uruchamia docker compose
+python deploy.py
 ```
+
+> Skrypt nie przechowuje żadnych haseł w kodzie – wszystkie dane logowania podawane są interaktywnie lub przez zmienne środowiskowe (`VPS_HOST`, `VPS_PORT`, `VPS_USER`, `VPS_PASS`).
 
 ### 3. Nginx + SSL
 
@@ -318,17 +324,20 @@ restaurant-clean/
 ## 🧪 Skrypty
 
 ```bash
-# Frontend
-npm run dev          # Serwer deweloperski (Vite) – http://localhost:5173
-npm run build        # Buduj wersję produkcyjną
-npm run test         # Uruchom testy (Vitest)
-npm run typecheck    # Sprawdź typy TypeScript (tsc --noEmit)
-npm run lint         # ESLint
-
 # Backend (przez Docker)
 docker compose logs -f backend          # Logi backendu
 docker compose logs -f celery-worker    # Logi Celery worker
 docker compose exec backend alembic ... # Migracje (jeśli dodane)
+
+# Backend testy (Python, wymaga pip install -e ".[dev]")
+cd backend && python -m pytest tests/ -v
+
+# Frontend
+npm run dev          # Serwer deweloperski (Vite) – http://localhost:5173
+npm run build        # Buduj wersję produkcyjną
+npm run test         # Uruchom testy frontendu (Vitest)
+npm run typecheck    # Sprawdź typy TypeScript (tsc --noEmit)
+npm run lint         # ESLint
 ```
 
 ---
