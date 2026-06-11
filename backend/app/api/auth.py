@@ -54,10 +54,14 @@ def _clear_refresh_cookie(response: Response) -> None:
 
 
 def _get_current_user(
-    authorization: str = Header(..., alias="Authorization"),
+    authorization: str | None = Header(None, alias="Authorization"),
     db: Session = Depends(get_db),
 ) -> User:
     """Dependency: validate Bearer token and return User."""
+    if not authorization:
+        raise HTTPException(
+            status_code=401, detail="Missing authorization header"
+        )
     payload = decode_token(authorization.removeprefix("Bearer "))
     if payload is None or payload.get("type") != "access":
         raise HTTPException(status_code=401, detail="Invalid or expired token")

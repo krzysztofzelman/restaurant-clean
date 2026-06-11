@@ -81,3 +81,9 @@ class TestMe:
     def test_me_unauthenticated(self, client: TestClient):
         resp = client.get("/api/auth/me", headers={"Authorization": "Bearer invalid"})
         assert resp.status_code == 401
+
+    def test_me_no_header(self, client: TestClient):
+        """Missing Authorization header should return 401, not 422."""
+        resp = client.get("/api/auth/me")
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Missing authorization header"
