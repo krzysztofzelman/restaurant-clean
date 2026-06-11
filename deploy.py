@@ -137,9 +137,9 @@ SMTP_HOST=
 SMTP_PORT=587
 SMTP_USER=
 SMTP_PASSWORD=
-VITE_API_URL=http://{DOMAIN}
+VITE_API_URL=https://{DOMAIN}
 VITE_STRIPE_PUBLISHABLE_KEY={auto_stripe_pub}
-FRONTEND_URL=http://{DOMAIN}
+FRONTEND_URL=https://{DOMAIN}
 """
     ssh.upload_str(f"{PROJECT_DIR}/.env", env_content)
     print("  .env created with production values")
