@@ -70,24 +70,7 @@ jobs:
       - name: Install sshpass
         run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
 
-      - name: Copy Docker configuration to VPS
-        env:
-          SSHPASS: ${{ secrets.SSH_PASSWORD }}
-        run: |
-          sshpass -e ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT || '2022' }} \
-            ${{ secrets.SSH_USER || 'root' }}@${{ secrets.SSH_HOST }} \
-            "mkdir -p /root/restaurant-clean/backend-dotnet"
-
-          sshpass -e scp -o StrictHostKeyChecking=no -P ${{ secrets.SSH_PORT || '2022' }} \
-            docker-compose.yml \
-            ${{ secrets.SSH_USER || 'root' }}@${{ secrets.SSH_HOST }}:/root/restaurant-clean/docker-compose.yml
-
-          sshpass -e rsync -avz --delete \
-            -e "ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT || '2022' }}" \
-            backend-dotnet/ \
-            ${{ secrets.SSH_USER || 'root' }}@${{ secrets.SSH_HOST }}:/root/restaurant-clean/backend-dotnet/
-
-      - name: Deploy via SSH
+      - name: Deploy via SSH (git pull + docker compose)
         env:
           SSHPASS: ${{ secrets.SSH_PASSWORD }}
         run: |
@@ -95,9 +78,11 @@ jobs:
             ${{ secrets.SSH_USER || 'root' }}@${{ secrets.SSH_HOST }} bash -c '
             set -e
             cd /root/restaurant-clean
+            echo "=== Pulling latest code ==="
+            git fetch origin
+            git reset --hard origin/main
             echo "=== Backing up database ==="
-            docker exec restaurant-db pg_dump -U restaurant restaurant_dotnet > /root/restaurant_backup_$(date +%Y%m%d_%H%M%S).sql
-            echo "DB backup created"
+            docker exec restaurant-db pg_dump -U restaurant restaurant_dotnet > /root/restaurant_backup_$(date +%Y%m%d_%H%M%S).sql || echo "DB backup skipped (db may be down)"
             echo "=== Building and starting .NET backend ==="
             docker compose up -d --build backend-dotnet
             echo "=== Waiting for .NET backend to be ready ==="
