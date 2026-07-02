@@ -7,7 +7,6 @@ services:
     restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
       POSTGRES_DB: restaurant
       POSTGRES_USER: restaurant
@@ -28,58 +27,21 @@ services:
       timeout: 3s
       retries: 5
 
-  backend:
+  backend-dotnet:
     build:
-      context: ./backend
+      context: ./backend-dotnet
       dockerfile: Dockerfile
-    container_name: restaurant-backend
+    container_name: restaurant-backend-dotnet
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8000:8000"
-    volumes:
-      - menu_images:/app/images
+      - "127.0.0.1:8080:8000"
     env_file: .env
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://restaurant:restaurant_dev@postgres:5432/restaurant}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8000
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=restaurant_dotnet;Username=restaurant;Password=restaurant_dev
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  celery-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: restaurant-celery-worker
-    restart: unless-stopped
-    command: celery -A app.celery_app worker --loglevel=info
-    env_file: .env
-    environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://restaurant:restaurant_dev@postgres:5432/restaurant}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  celery-beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: restaurant-celery-beat
-    restart: unless-stopped
-    command: celery -A app.celery_app beat --loglevel=info
-    env_file: .env
-    environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://restaurant:restaurant_dev@postgres:5432/restaurant}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
 volumes:

@@ -14,6 +14,10 @@ __pycache__/
 *.pyc
 *.pyo
 
+# .NET build artifacts
+backend-dotnet/**/bin/
+backend-dotnet/**/obj/
+
 # Qwen AI tool configurations
 .qwen/
 
