@@ -23,6 +23,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 EXPOSE 8000
 
+# Install libgssapi-krb5-2 for PostgreSQL Kerberos auth
+RUN apt-get update && apt-get install -y libgssapi-krb5-2 && rm -rf /var/lib/apt/lists/*
+
 # Copy published output
 COPY --from=build /app/publish .
 

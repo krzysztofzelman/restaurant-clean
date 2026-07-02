@@ -83,7 +83,8 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ── Hangfire recurring jobs ───────────────────────────────────────────
-RecurringJob.AddOrUpdate<CancelUnpaidOrdersJob>(
+var jobManager = app.Services.GetRequiredService<IRecurringJobManager>();
+jobManager.AddOrUpdate<CancelUnpaidOrdersJob>(
     "cancel-unpaid-orders",
     job => job.Run(TimeSpan.FromMinutes(30)),
     "*/5 * * * *");
