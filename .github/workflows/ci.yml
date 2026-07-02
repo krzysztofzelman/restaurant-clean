@@ -50,9 +50,13 @@ jobs:
       - name: Build
         run: dotnet build backend-dotnet/Restaurant.slnx -c Release --no-restore
 
-      - name: Run tests
-        run: dotnet test backend-dotnet/Restaurant.slnx -c Release --no-build --verbosity normal
-        continue-on-error: true
+      - name: Run tests (if any exist)
+        run: |
+          if ls backend-dotnet/**/*.Tests*.csproj 2>/dev/null; then
+            dotnet test backend-dotnet/Restaurant.slnx -c Release --no-build --verbosity normal
+          else
+            echo "No test projects found, skipping tests"
+          fi
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -93,19 +97,15 @@ jobs:
             cd /root/restaurant-clean
 
             echo "=== Backing up database ==="
-            docker exec restaurant-db pg_dump -U restaurant restaurant > /root/restaurant_backup_$(date +%Y%m%d_%H%M%S).sql
+            docker exec restaurant-db pg_dump -U restaurant restaurant_dotnet > /root/restaurant_backup_$(date +%Y%m%d_%H%M%S).sql
             echo "DB backup created"
-
-            echo "=== Stopping old Python containers ==="
-            docker compose stop backend celery-worker celery-beat 2>/dev/null || true
-            docker compose rm -f backend celery-worker celery-beat 2>/dev/null || true
 
             echo "=== Building and starting .NET backend ==="
             docker compose up -d --build backend-dotnet
 
             echo "=== Waiting for .NET backend to be ready ==="
             for i in $(seq 1 30); do
-              if curl -s http://localhost:8080/health > /dev/null 2>&1; then
+              if curl -s http://localhost:8082/health > /dev/null 2>&1; then
                 echo ".NET backend is ready!"
                 break
               fi
@@ -114,9 +114,9 @@ jobs:
             done
 
             echo "=== Verifying deployment ==="
-            curl -s -o /dev/null -w "Health endpoint HTTP status: %{http_code}\n" http://localhost:8080/health
+            curl -s -o /dev/null -w "Health endpoint HTTP status: %{http_code}\n" http://localhost:8082/health
             echo "Response body:"
-            curl -s http://localhost:8080/health
+            curl -s http://localhost:8082/health
 
             echo "=== Recent container logs ==="
             docker compose logs --tail=20 backend-dotnet
