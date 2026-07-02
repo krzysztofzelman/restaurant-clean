@@ -70,7 +70,12 @@ builder.Services.AddHangfire(config =>
 builder.Services.AddHangfireServer();
 
 // ── Frameworks ────────────────────────────────────────────────────────
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy =
+            System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
+    });
 builder.Services.AddOpenApi();
 
 var app = builder.Build();

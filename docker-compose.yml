@@ -38,6 +38,11 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8000
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=restaurant_dotnet;Username=restaurant;Password=restaurant_dev
+      Jwt__SecretKey: super-secret-key-change-in-production-at-least-32-characters!!
+      Jwt__Issuer: restaurant-api
+      Jwt__Audience: restaurant-app
+      Jwt__AccessTokenExpireMinutes: 15
+      Jwt__RefreshTokenExpireDays: 7
     depends_on:
       postgres:
         condition: service_healthy

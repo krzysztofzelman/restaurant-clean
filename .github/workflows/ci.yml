@@ -84,6 +84,8 @@ jobs:
             git reset --hard origin/main
             echo "=== Backing up database ==="
             docker exec restaurant-db pg_dump -U restaurant restaurant_dotnet > /root/restaurant_backup_$(date +%Y%m%d_%H%M%S).sql || echo "DB backup skipped (db may be down)"
+            echo "=== Stopping old .NET backend ==="
+            docker compose down backend-dotnet || true
             echo "=== Building and starting .NET backend ==="
             docker compose up -d --build backend-dotnet
             echo "=== Waiting for .NET backend to be ready ==="
