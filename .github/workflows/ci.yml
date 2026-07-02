@@ -67,14 +67,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install sshpass
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
-
       - name: Deploy via SSH (git pull + docker compose)
         env:
-          SSHPASS: ${{ secrets.SSH_PASSWORD }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
         run: |
-          sshpass -e ssh -o StrictHostKeyChecking=no -p 2022 \
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/github_key
+          chmod 600 ~/.ssh/github_key
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/github_key -p 2022 \
             root@31.3.218.196 bash -c '
             set -e
             cd /root/restaurant-clean
